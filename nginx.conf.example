@@ -1,7 +1,7 @@
 # ==============================================================================
 # Nginx Reverse Proxy Configuration
 # Domain: dashboard.narasumberhukum.com
-# Route / Subpath: /inventaris-nh -> Next.js Local Server (port 3000)
+# Route / Subpath: /inventaris-nh -> Next.js Local Server (port dedicated: 3829)
 # ==============================================================================
 
 # Tempatkan blok konfigurasi ini di dalam blok 'server { ... }' domain dashboard.narasumberhukum.com
@@ -14,10 +14,10 @@ server {
     client_max_body_size 100M;
 
     # --------------------------------------------------------------------------
-    # Konfigurasi Route /inventaris-nh
+    # Konfigurasi Route /inventaris-nh (menuju port 3829)
     # --------------------------------------------------------------------------
     location /inventaris-nh {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3829;
         proxy_http_version 1.1;
 
         # WebSocket & Upgrade Headers
@@ -40,7 +40,7 @@ server {
 
     # Optional: Caching untuk aset statis Next.js di bawah subpath
     location /inventaris-nh/_next/static {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3829;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         expires 365d;

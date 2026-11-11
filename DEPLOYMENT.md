@@ -57,7 +57,7 @@ BASE_PATH="/inventaris-nh"
 NEXT_PUBLIC_BASE_PATH="/inventaris-nh"
 SESSION_SECRET="ganti-dengan-kunci-rahasia-acak-anda-2026"
 COOKIE_SECURE="true"
-PORT=3000
+PORT=3829
 HOST="127.0.0.1"
 ```
 
@@ -121,7 +121,7 @@ server {
     # Route Subpath Aplikasi Inventaris Kantor
     # ----------------------------------------------------------------------
     location /inventaris-nh {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3829;
         proxy_http_version 1.1;
 
         # WebSocket & connection headers
@@ -144,7 +144,7 @@ server {
 
     # Caching aset statis Next.js
     location /inventaris-nh/_next/static {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:3829;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         expires 365d;
