@@ -1,0 +1,141 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  username      String?   @unique
+  password_hash String?
+  role          String    @default("Penginventaris") // "Admin" | "Penginventaris"
+  status        String    @default("ACTIVE")         // "ACTIVE" | "INACTIVE"
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  sessions          Session[]
+  inventories       Inventory[]
+  activity_logs     InventoryActivityLog[]
+  created_tokens    EnrollmentToken[]      @relation("CreatedTokens")
+  enrolled_with     EnrollmentToken?       @relation("EnrolledUser")
+  logistics         Logistic[]
+
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+model EnrollmentToken {
+  id                String    @id @default(cuid())
+  token_hash        String    @unique
+  status            String    @default("ACTIVE") // "ACTIVE" | "USED" | "REVOKED" | "EXPIRED"
+  expires_at        DateTime
+  used_at           DateTime?
+  created_by        String
+  creator           User      @relation("CreatedTokens", fields: [created_by], references: [id])
+  used_by_user_id   String?   @unique
+  used_by           User?     @relation("EnrolledUser", fields: [used_by_user_id], references: [id])
+  created_at        DateTime  @default(now())
+
+  @@index([status])
+  @@index([token_hash])
+  @@map("enrollment_tokens")
+}
+
+model Category {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  status      String      @default("ACTIVE") // "ACTIVE" | "INACTIVE"
+  created_at  DateTime    @default(now())
+
+  inventories Inventory[]
+
+  @@map("categories")
+}
+
+model Inventory {
+  id          String      @id @default(cuid())
+  name        String
+  category_id String
+  category    Category    @relation(fields: [category_id], references: [id])
+  location    String
+  quantity    Int         @default(1)
+  condition   String      // "Baik" | "Rusak Ringan" | "Rusak Berat" | "Perlu Perbaikan" or custom
+  notes       String?
+  price       Float?
+  photo_path  String?
+  created_by  String
+  creator     User        @relation(fields: [created_by], references: [id])
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+
+  activity_logs InventoryActivityLog[]
+
+  @@index([category_id])
+  @@index([created_by])
+  @@index([condition])
+  @@map("inventories")
+}
+
+model InventoryActivityLog {
+  id           String     @id @default(cuid())
+  inventory_id String
+  inventory    Inventory  @relation(fields: [inventory_id], references: [id], onDelete: Cascade)
+  user_id      String
+  user         User       @relation(fields: [user_id], references: [id])
+  action       String     // "CREATE" | "UPDATE" | "DELETE"
+  old_data     String?    // JSON string
+  new_data     String?    // JSON string
+  created_at   DateTime   @default(now())
+
+  @@index([inventory_id])
+  @@index([user_id])
+  @@map("inventory_activity_logs")
+}
+
+model Session {
+  id                 String    @id @default(cuid())
+  user_id            String
+  user               User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session_token_hash String    @unique
+  expires_at         DateTime
+  created_at         DateTime  @default(now())
+
+  @@index([user_id])
+  @@index([session_token_hash])
+  @@map("sessions")
+}
+
+model Logistic {
+  id          String   @id @default(cuid())
+  name        String
+  category    String   // "Makanan & Minuman" | "Kebersihan" | "ATK" | "Lainnya"
+  unit        String   // "pcs" | "bungkus" | "botol" | "pack" | "lusin" | "kg" | "liter"
+  quantity    Int      @default(0)
+  min_stock   Int      @default(5)
+  location    String
+  notes       String?
+  price       Float?
+  photo_path  String?
+  created_by  String
+  creator     User     @relation(fields: [created_by], references: [id])
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@index([created_by])
+  @@index([category])
+  @@map("logistics")
+}
+
+model AppSetting {
+  key        String   @id
+  value      String
+  updated_at DateTime @updatedAt
+
+  @@map("app_settings")
+}

@@ -1,0 +1,49 @@
+# ==============================================================================
+# Nginx Reverse Proxy Configuration
+# Domain: dashboard.narasumberhukum.com
+# Route / Subpath: /inventaris-nh -> Next.js Local Server (port 3000)
+# ==============================================================================
+
+# Tempatkan blok konfigurasi ini di dalam blok 'server { ... }' domain dashboard.narasumberhukum.com
+# Biasanya di /etc/nginx/sites-available/dashboard.narasumberhukum.com atau /etc/nginx/conf.d/
+
+server {
+    server_name dashboard.narasumberhukum.com;
+
+    # Ukuran maksimal upload foto & database backup (100MB)
+    client_max_body_size 100M;
+
+    # --------------------------------------------------------------------------
+    # Konfigurasi Route /inventaris-nh
+    # --------------------------------------------------------------------------
+    location /inventaris-nh {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+
+        # WebSocket & Upgrade Headers
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Forwarded Host & Protocol
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Prefix /inventaris-nh;
+
+        # Timeouts untuk upload file besar & backup zip
+        proxy_connect_timeout 120s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+    }
+
+    # Optional: Caching untuk aset statis Next.js di bawah subpath
+    location /inventaris-nh/_next/static {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        expires 365d;
+        access_log off;
+    }
+}

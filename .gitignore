@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+.env
+.env.local
+.tunnel_url
+.bin
+prisma/*.db
+prisma/*.db-journal
+public/uploads/*
+!public/uploads/.gitkeep
+dist-windows/
+*.log

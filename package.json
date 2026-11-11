@@ -1,0 +1,51 @@
+{
+  "name": "inventaris-kantor",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 3000",
+    "build": "prisma generate && next build",
+    "start": "next start -H 0.0.0.0 -p 3000",
+    "lint": "next lint",
+    "seed": "node scripts/seed.js",
+    "seed:admin": "node scripts/seed-admin.js",
+    "tunnel": "node scripts/tunnel.js",
+    "ngrok": "node scripts/ngrok.js",
+    "dev:ngrok": "node scripts/dev-ngrok.js",
+    "users": "node scripts/show-users.js",
+    "reset-admin": "node scripts/seed-admin.js",
+    "test:e2e": "node scripts/test-e2e.js",
+    "package:windows": "node scripts/package-windows.js"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jszip": "^3.4.0",
+    "@types/node": "^26.6.6",
+    "@types/qrcode": "^1.5.6",
+    "autoprefixer": "^10.6.2",
+    "bcryptjs": "^3.0.3",
+    "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.9",
+    "jszip": "^3.10.2",
+    "lucide-react": "^1.69.0",
+    "next": "^14.2.24",
+    "postcss": "^8.5.32",
+    "prisma": "^6.19.3",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^3.4.19"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "typescript": "^5.9.3"
+  }
+}
