@@ -90,19 +90,12 @@ export async function PUT(
       return NextResponse.json({ error: 'Data inventaris tidak ditemukan.' }, { status: 404 });
     }
 
-    // Authorization check
-    if (user.role !== 'Admin') {
-      const setting = await prisma.appSetting.findUnique({
-        where: { key: 'allow_employee_edit' },
-      });
-      const allowEmployeeEdit = setting?.value === 'true';
-
-      if (!allowEmployeeEdit || existing.created_by !== user.id) {
-        return NextResponse.json(
-          { error: 'Anda tidak memiliki izin untuk mengedit inventaris ini.' },
-          { status: 403 }
-        );
-      }
+    // Authorization check: Admin atau penginput yang menginput data ini
+    if (user.role !== 'Admin' && existing.created_by !== user.id) {
+      return NextResponse.json(
+        { error: 'Anda hanya memiliki izin untuk mengedit barang yang Anda input sendiri.' },
+        { status: 403 }
+      );
     }
 
     const formData = await request.formData();
@@ -241,19 +234,12 @@ export async function DELETE(
       return NextResponse.json({ error: 'Data inventaris tidak ditemukan.' }, { status: 404 });
     }
 
-    // Authorization
-    if (user.role !== 'Admin') {
-      const setting = await prisma.appSetting.findUnique({
-        where: { key: 'allow_employee_edit' },
-      });
-      const allowEmployeeEdit = setting?.value === 'true';
-
-      if (!allowEmployeeEdit || existing.created_by !== user.id) {
-        return NextResponse.json(
-          { error: 'Anda tidak memiliki izin untuk menghapus inventaris ini.' },
-          { status: 403 }
-        );
-      }
+    // Authorization: Admin atau penginput yang menginput data ini
+    if (user.role !== 'Admin' && existing.created_by !== user.id) {
+      return NextResponse.json(
+        { error: 'Anda hanya memiliki izin untuk menghapus barang yang Anda input sendiri.' },
+        { status: 403 }
+      );
     }
 
     // Delete photo if exists

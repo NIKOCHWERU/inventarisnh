@@ -24,6 +24,7 @@ model User {
   created_tokens    EnrollmentToken[]      @relation("CreatedTokens")
   enrolled_with     EnrollmentToken?       @relation("EnrolledUser")
   logistics         Logistic[]
+  logistic_histories LogisticHistory[]
 
   @@index([role])
   @@index([status])
@@ -128,9 +129,32 @@ model Logistic {
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
+  histories   LogisticHistory[]
+
   @@index([created_by])
   @@index([category])
   @@map("logistics")
+}
+
+model LogisticHistory {
+  id           String    @id @default(cuid())
+  logistic_id  String
+  logistic     Logistic  @relation(fields: [logistic_id], references: [id], onDelete: Cascade)
+  user_id      String
+  user         User      @relation(fields: [user_id], references: [id])
+  action       String    // "CREATE" | "UPDATE" | "STOCK_IN" | "STOCK_OUT" | "ADJUSTMENT" | "DELETE"
+  stock_change Int       @default(0) // +10, -5, or 0
+  old_stock    Int?
+  new_stock    Int?
+  old_data     String?   // JSON string of Logistic snapshot before
+  new_data     String?   // JSON string of Logistic snapshot after
+  notes        String?   // Catatan perubahan
+  created_at   DateTime  @default(now())
+
+  @@index([logistic_id])
+  @@index([user_id])
+  @@index([created_at])
+  @@map("logistic_histories")
 }
 
 model AppSetting {

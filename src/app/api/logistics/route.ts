@@ -108,7 +108,7 @@ export async function POST(request: Request) {
     if (!unit) return NextResponse.json({ error: 'Satuan wajib diisi.' }, { status: 400 });
     if (!location) return NextResponse.json({ error: 'Lokasi wajib diisi.' }, { status: 400 });
 
-    const item = await (prisma.logistic.create as any)({
+    const item = await prisma.logistic.create({
       data: {
         name, category, unit, quantity,
         min_stock: isNaN(min_stock) ? 5 : min_stock,
@@ -118,6 +118,21 @@ export async function POST(request: Request) {
       },
       include: { creator: { select: { id: true, name: true } } },
     });
+
+    // Simpan data awal ke riwayat logistik
+    await prisma.logisticHistory.create({
+      data: {
+        logistic_id: item.id,
+        user_id: user.id,
+        action: 'CREATE',
+        stock_change: item.quantity,
+        old_stock: 0,
+        new_stock: item.quantity,
+        old_data: null,
+        new_data: JSON.stringify(item),
+        notes: notes || 'Pencatatan awal barang logistik',
+      },
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, item });
   } catch (error: any) {

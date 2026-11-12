@@ -7,6 +7,42 @@ import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
+export async function GET(request: Request, { params }: { params: { id: string } }) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Tidak diautentikasi.' }, { status: 401 });
+    }
+
+    const { id } = params;
+    const item = await prisma.logistic.findUnique({
+      where: { id },
+      include: {
+        creator: { select: { id: true, name: true, role: true } },
+        histories: {
+          orderBy: { created_at: 'desc' },
+          include: {
+            user: { select: { id: true, name: true, role: true } },
+          },
+          take: 50,
+        },
+      },
+    });
+
+    if (!item) {
+      return NextResponse.json({ error: 'Data logistik tidak ditemukan.' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      item,
+    });
+  } catch (error: any) {
+    console.error('Get logistic detail error:', error);
+    return NextResponse.json({ error: 'Gagal memuat detail logistik.' }, { status: 500 });
+  }
+}
+
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
     const user = await getCurrentUser();
@@ -35,6 +71,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     let location: string | undefined;
     let notes: string | null | undefined;
     let price: number | null | undefined;
+    let changeAction: string | undefined;
+    let changeReason: string | undefined;
 
     if (contentType.includes('multipart/form-data')) {
       // FormData with possible photo
@@ -49,6 +87,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       location = (formData.get('location') as string) || undefined;
       const notesVal = formData.get('notes');
       notes = notesVal ? (notesVal as string).trim() || null : undefined;
+      changeAction = (formData.get('action') as string) || undefined;
+      changeReason = (formData.get('change_reason') as string) || undefined;
+
       const priceVal = formData.get('price');
       if (priceVal !== null) {
         const str = (priceVal as string).trim();
@@ -97,6 +138,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       if (body.min_stock !== undefined) min_stock = parseInt(body.min_stock, 10);
       location = body.location;
       notes = body.notes !== undefined ? (body.notes?.trim() || null) : undefined;
+      changeAction = body.action;
+      changeReason = body.change_reason;
       if (body.price !== undefined) {
         if (body.price === null || body.price === '') {
           price = null;
@@ -107,7 +150,17 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       }
     }
 
-    const updated = await (prisma.logistic.update as any)({
+    const newQty = quantity !== undefined && !isNaN(quantity) ? quantity : existing.quantity;
+    const stockChange = newQty - existing.quantity;
+
+    let effectiveAction = changeAction;
+    if (!effectiveAction) {
+      if (stockChange > 0) effectiveAction = 'STOCK_IN';
+      else if (stockChange < 0) effectiveAction = 'STOCK_OUT';
+      else effectiveAction = 'UPDATE';
+    }
+
+    const updated = await prisma.logistic.update({
       where: { id },
       data: {
         ...(name !== undefined && { name: name.trim() }),
@@ -121,6 +174,21 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         ...(photoPath !== undefined && { photo_path: photoPath }),
       },
       include: { creator: { select: { id: true, name: true } } },
+    });
+
+    // Simpan snapshot perubahan ke riwayat data logistik (LogisticHistory)
+    await prisma.logisticHistory.create({
+      data: {
+        logistic_id: updated.id,
+        user_id: user.id,
+        action: effectiveAction,
+        stock_change: stockChange,
+        old_stock: existing.quantity,
+        new_stock: updated.quantity,
+        old_data: JSON.stringify(existing),
+        new_data: JSON.stringify(updated),
+        notes: changeReason || (notes !== undefined ? notes : existing.notes) || (effectiveAction === 'STOCK_IN' ? 'Penambahan stok masuk' : effectiveAction === 'STOCK_OUT' ? 'Pengurangan / pemakaian stok' : 'Pembaruan data logistik'),
+      },
     });
 
     return NextResponse.json({ success: true, item: updated });
@@ -146,6 +214,21 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     if (existing.created_by !== user.id && user.role !== 'Admin') {
       return NextResponse.json({ error: 'Akses ditolak.' }, { status: 403 });
     }
+
+    // Catat log penghapusan sebelum di-cascade delete
+    await prisma.logisticHistory.create({
+      data: {
+        logistic_id: existing.id,
+        user_id: user.id,
+        action: 'DELETE',
+        stock_change: -existing.quantity,
+        old_stock: existing.quantity,
+        new_stock: 0,
+        old_data: JSON.stringify(existing),
+        new_data: null,
+        notes: `Barang logistik "${existing.name}" dihapus dari sistem`,
+      },
+    }).catch(() => {});
 
     // Delete photo file if exists
     if (existing.photo_path) {

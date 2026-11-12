@@ -18,9 +18,13 @@ import {
   Eye,
   LayoutGrid,
   List,
+  BarChart3,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { LogisticsEditModal } from '@/components/portal/LogisticsEditModal';
+import { LogisticsCompareView } from '@/components/admin/LogisticsCompareView';
+import { LogisticsHistoryView } from '@/components/admin/LogisticsHistoryView';
 import { formatRupiah } from '@/lib/format';
 import { formatPhotoUrl } from '@/lib/base-path';
 
@@ -35,6 +39,7 @@ const LOGISTIC_CATEGORIES = [
 ];
 
 export default function AdminLogisticsPage() {
+  const [mainTab, setMainTab] = useState<'inventory' | 'compare' | 'history'>('inventory');
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -200,6 +205,48 @@ export default function AdminLogisticsPage() {
         </Button>
       </div>
 
+      {/* Tab Navigation */}
+      <div className="flex border-b border-[#EAE4D9] space-x-1 sm:space-x-3 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setMainTab('inventory')}
+          className={`py-2.5 px-3.5 text-xs font-bold border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
+            mainTab === 'inventory'
+              ? 'border-[#B8860B] text-[#7A5805] bg-[#FAF6EC]/60 rounded-t-lg'
+              : 'border-transparent text-[#70685C] hover:text-[#231F1A]'
+          }`}
+        >
+          <Package className="w-4 h-4 text-[#B8860B]" />
+          <span>Stok & Pengelolaan Logistik</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMainTab('compare')}
+          className={`py-2.5 px-3.5 text-xs font-bold border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
+            mainTab === 'compare'
+              ? 'border-[#B8860B] text-[#7A5805] bg-[#FAF6EC]/60 rounded-t-lg'
+              : 'border-transparent text-[#70685C] hover:text-[#231F1A]'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4 text-[#B8860B]" />
+          <span>Komparasi Periode (Bulan Ini vs Lalu)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMainTab('history')}
+          className={`py-2.5 px-3.5 text-xs font-bold border-b-2 transition flex items-center gap-2 whitespace-nowrap ${
+            mainTab === 'history'
+              ? 'border-[#B8860B] text-[#7A5805] bg-[#FAF6EC]/60 rounded-t-lg'
+              : 'border-transparent text-[#70685C] hover:text-[#231F1A]'
+          }`}
+        >
+          <History className="w-4 h-4 text-[#B8860B]" />
+          <span>Riwayat Perubahan & Audit Log</span>
+        </button>
+      </div>
+
       {actionMessage && (
         <div
           className={`p-3.5 rounded-xl border text-xs flex items-center gap-2.5 ${
@@ -217,8 +264,11 @@ export default function AdminLogisticsPage() {
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* INVENTORY TAB */}
+      {mainTab === 'inventory' && (
+        <>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white rounded-xl border border-[#EAE4D9] p-4 shadow-2xs">
           <span className="text-xs font-medium text-[#70685C] block">Total Jenis Logistik</span>
           <div className="mt-1 flex items-baseline gap-1">
@@ -697,6 +747,18 @@ export default function AdminLogisticsPage() {
             </div>
           )}
         </div>
+      )}
+      </>
+      )}
+
+      {/* Compare View Tab */}
+      {mainTab === 'compare' && (
+        <LogisticsCompareView onOpenEditModal={(item) => setEditingItem(item)} />
+      )}
+
+      {/* Audit Log / History View Tab */}
+      {mainTab === 'history' && (
+        <LogisticsHistoryView />
       )}
 
       {/* Edit Modal Component */}

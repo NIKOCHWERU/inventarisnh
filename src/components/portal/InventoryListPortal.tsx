@@ -16,7 +16,9 @@ import {
   Eye,
   X,
   Package,
+  Pencil,
 } from 'lucide-react';
+import { InventoryEditModal } from './InventoryEditModal';
 import { Button } from '@/components/ui/Button';
 import { formatRupiah } from '@/lib/format';
 import { portalFetch } from '@/lib/api-client';
@@ -61,8 +63,10 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
   // View mode: 'grid' | 'list'
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  // Detail Modal
+  // Modals
   const [detailItem, setDetailItem] = useState<InventoryItem | null>(null);
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
 
   // Load saved view mode
   useEffect(() => {
@@ -112,17 +116,52 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
   }, [filterMode, categoryId, condition]);
 
   useEffect(() => {
-    async function loadCategories() {
+    async function loadMeta() {
       try {
-        const res = await portalFetch('/api/categories');
-        const data = await res.json();
-        if (data.categories) {
-          setCategories(data.categories.filter((c: any) => c.status === 'ACTIVE'));
+        const [catRes, locRes] = await Promise.all([
+          portalFetch('/api/categories'),
+          portalFetch('/api/inventory/locations'),
+        ]);
+        const catData = await catRes.json();
+        const locData = await locRes.json();
+        if (catData.categories) {
+          setCategories(catData.categories.filter((c: any) => c.status === 'ACTIVE'));
+        }
+        if (locData.locations) {
+          setLocationSuggestions(locData.locations);
         }
       } catch (err) {}
     }
-    loadCategories();
+    loadMeta();
   }, []);
+
+  const handleUpdated = (updated: any) => {
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === updated.id
+          ? {
+              ...i,
+              name: updated.name,
+              categoryId: updated.categoryId,
+              categoryName: updated.categoryName,
+              location: updated.location,
+              quantity: updated.quantity,
+              unit: updated.unit,
+              condition: updated.condition,
+              notes: updated.notes,
+              price: updated.price,
+              photoPath: updated.photoPath,
+            }
+          : i
+      )
+    );
+    if (detailItem?.id === updated.id) {
+      setDetailItem((prev: any) => ({
+        ...prev,
+        ...updated,
+      }));
+    }
+  };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -351,18 +390,32 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
                   </div>
 
                   {/* Action button */}
-                  <div className="mt-2.5 pt-2 border-t border-[#F0EBE0]">
+                  <div className="mt-2.5 pt-2 border-t border-[#F0EBE0] flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         setDetailItem(item);
                       }}
-                      className="w-full flex items-center justify-center gap-1 py-1 rounded bg-[#FAF9F5] hover:bg-[#F4F0E8] text-[#70685C] hover:text-[#231F1A] text-[11px] font-semibold transition"
+                      className="flex-1 flex items-center justify-center gap-1 py-1 rounded bg-[#FAF9F5] hover:bg-[#F4F0E8] text-[#70685C] hover:text-[#231F1A] text-[11px] font-semibold transition"
                     >
                       <Eye className="w-3 h-3 text-[#B8860B]" />
-                      <span>Lihat Detail</span>
+                      <span>Detail</span>
                     </button>
+                    {(item.createdById === currentUser.id || currentUser.role === 'Admin') && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingItem(item);
+                        }}
+                        className="px-2 py-1 rounded bg-[#FAF6EC] hover:bg-[#F5EED8] border border-[#C5A059] text-[#7A5805] text-[11px] font-semibold flex items-center gap-1 transition"
+                        title="Edit Data Barang"
+                      >
+                        <Pencil className="w-3 h-3 text-[#B8860B]" />
+                        <span>Edit</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -463,6 +516,20 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
                   >
                     <Eye className="w-3.5 h-3.5" />
                   </button>
+
+                  {(isMyItem || currentUser.role === 'Admin') && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingItem(item);
+                      }}
+                      className="p-1.5 rounded-lg border border-[#C5A059] bg-[#FAF6EC] text-[#7A5805] hover:bg-[#F5EED8] transition"
+                      title="Edit Data Barang"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -598,18 +665,43 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
               </div>
             </div>
 
-            {/* Footer Button */}
-            <div className="pt-2">
+            {/* Footer Buttons */}
+            <div className="pt-2 flex items-center gap-2">
+              {(detailItem.createdById === currentUser.id || currentUser.role === 'Admin') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const it = detailItem;
+                    setDetailItem(null);
+                    setEditingItem(it);
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-[#FAF6EC] hover:bg-[#F5EED8] border border-[#B8860B] text-xs font-bold text-[#7A5805] flex items-center justify-center gap-1.5 transition"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Edit Barang Ini
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setDetailItem(null)}
-                className="w-full py-2 rounded-lg bg-[#FAF9F5] hover:bg-[#F4F0E8] border border-[#EAE4D9] text-xs font-semibold text-[#231F1A] transition"
+                className="flex-1 py-2 rounded-xl bg-[#FAF9F5] hover:bg-[#F4F0E8] border border-[#EAE4D9] text-xs font-semibold text-[#231F1A] transition"
               >
-                Tutup Pratinjau
+                Tutup
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* EDIT MODAL */}
+      {editingItem && (
+        <InventoryEditModal
+          item={editingItem}
+          categories={categories}
+          locationSuggestions={locationSuggestions}
+          onClose={() => setEditingItem(null)}
+          onUpdated={handleUpdated}
+        />
       )}
     </div>
   );
