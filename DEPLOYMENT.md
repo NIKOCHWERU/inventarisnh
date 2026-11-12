@@ -51,7 +51,7 @@ cp .env.example .env
 
 Pastikan isi `.env` sebagai berikut:
 ```env
-DATABASE_URL="file:./prisma/dev.db"
+DATABASE_URL="file:./dev.db"
 APP_URL="https://dashboard.narasumberhukum.com/inventaris-nh"
 BASE_PATH="/inventaris-nh"
 NEXT_PUBLIC_BASE_PATH="/inventaris-nh"
@@ -63,7 +63,10 @@ HOST="127.0.0.1"
 
 Inisialisasi database SQLite dan akun default Admin:
 ```bash
+mkdir -p prisma public/uploads
+chmod -R 775 prisma public/uploads
 npx prisma generate
+npx prisma db push
 node scripts/seed.js
 ```
 > Akun Admin bawaan:

@@ -48,7 +48,7 @@ npm install --production=false
 # 5. Konfigurasi File .env Produksi
 echo -e "${YELLOW}[4/8] Menyiapkan file konfigurasi environment (.env)...${NC}"
 cat << 'EOF' > .env
-DATABASE_URL="file:./prisma/dev.db"
+DATABASE_URL="file:./dev.db"
 APP_URL="https://dashboard.narasumberhukum.com/inventaris-nh"
 BASE_PATH="/inventaris-nh"
 NEXT_PUBLIC_BASE_PATH="/inventaris-nh"
@@ -61,10 +61,13 @@ echo -e "${GREEN}✓ File .env berhasil dibuat dengan port 3829 dan subpath /inv
 
 # 6. Database & Prisma Setup
 echo -e "${YELLOW}[5/8] Menyiapkan database SQLite & generate Prisma client...${NC}"
+mkdir -p prisma public/uploads
+chmod -R 775 prisma public/uploads 2>/dev/null || true
 npx prisma generate
-if [ ! -f "prisma/dev.db" ]; then
-    echo -e "${YELLOW}Database baru terdeteksi, menjalankan seeding akun Admin default...${NC}"
-    node scripts/seed.js
+npx prisma db push --skip-generate
+if [ ! -f "prisma/dev.db" ] || [ $(node -e "const { PrismaClient } = require('@prisma/client'); const p = new PrismaClient(); p.user.count().then(c => { console.log(c); process.exit(0); }).catch(() => { console.log(0); process.exit(0); });" 2>/dev/null || echo 0) -eq 0 ]; then
+    echo -e "${YELLOW}Menjalankan seeding kategori & akun Admin default...${NC}"
+    node scripts/seed.js || true
 fi
 echo -e "${GREEN}✓ Database & Prisma siap.${NC}"
 
