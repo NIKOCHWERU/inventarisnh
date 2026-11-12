@@ -13,6 +13,7 @@ export interface InventoryPreviewData {
   categoryName: string;
   location: string;
   quantity: number;
+  unit?: string;
   condition: string;
   notes?: string;
   price?: number;
@@ -97,7 +98,7 @@ export function InventoryConfirmModal({
                 <Hash className="w-3.5 h-3.5 text-[#B8860B]" /> Jumlah
               </span>
               <span className="text-sm font-semibold text-[#231F1A] mt-0.5 block">
-                {data.quantity} Unit
+                {data.quantity} {data.unit || 'Unit'}
               </span>
             </div>
             <div>

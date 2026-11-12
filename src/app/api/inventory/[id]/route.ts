@@ -41,6 +41,7 @@ export async function GET(
         categoryName: item.category.name,
         location: item.location,
         quantity: item.quantity,
+        unit: (item as any).unit || 'PCS',
         condition: item.condition,
         notes: (item as any).notes || null,
         price: (item as any).price ?? null,
@@ -113,11 +114,13 @@ export async function PUT(
     const notesRaw = formData.get('notes');
     const priceRaw = formData.get('price');
     const removePhoto = formData.get('remove_photo') === 'true';
+    const unit = formData.get('unit')?.toString().trim();
     const photoFile = formData.get('photo') as File | null;
 
     const updateData: any = {};
     if (name) updateData.name = name;
     if (location) updateData.location = location;
+    if (unit) updateData.unit = unit;
     if (notesRaw !== null && notesRaw !== undefined) {
       updateData.notes = notesRaw.toString().trim() || null;
     }

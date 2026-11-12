@@ -65,6 +65,7 @@ model Inventory {
   category    Category    @relation(fields: [category_id], references: [id])
   location    String
   quantity    Int         @default(1)
+  unit        String?     @default("PCS")
   condition   String      // "Baik" | "Rusak Ringan" | "Rusak Berat" | "Perlu Perbaikan" or custom
   notes       String?
   price       Float?

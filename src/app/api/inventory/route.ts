@@ -98,6 +98,7 @@ export async function GET(request: Request) {
       categoryName: item.category.name,
       location: item.location,
       quantity: item.quantity,
+      unit: (item as any).unit || 'PCS',
       condition: item.condition,
       notes: (item as any).notes || null,
       price: (item as any).price ?? null,
@@ -143,6 +144,7 @@ export async function POST(request: Request) {
     const priceRaw = formData.get('price')?.toString().trim();
     const parsedPrice = priceRaw ? parseFloat(priceRaw.replace(/[^0-9.]/g, '')) : null;
     const price = parsedPrice !== null && !isNaN(parsedPrice) ? parsedPrice : null;
+    const unit = formData.get('unit')?.toString().trim() || 'PCS';
     const photoFile = formData.get('photo') as File | null;
 
     if (!name) {
@@ -191,6 +193,7 @@ export async function POST(request: Request) {
         category_id,
         location,
         quantity,
+        unit,
         condition,
         notes,
         price,

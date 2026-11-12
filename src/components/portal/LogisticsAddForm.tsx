@@ -15,6 +15,8 @@ import {
   Trash2,
   Sparkles,
   MapPin,
+  X,
+  Check,
 } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
 import { portalFetch } from '@/lib/api-client';
@@ -27,6 +29,19 @@ const LOGISTIC_CATEGORIES = [
   'Peralatan Dapur',
   'Sanitasi & Kesehatan',
   'Lainnya',
+];
+
+const LOGISTIC_UNITS = [
+  'pcs',
+  'pack',
+  'liter',
+  'kg',
+  'botol',
+  'bungkus',
+  'dus',
+  'rim',
+  'lusin',
+  'set',
 ];
 
 const PRESET_ITEMS: { name: string; category: string; unit: string }[] = [
@@ -65,9 +80,12 @@ export function LogisticsAddForm({ currentUser, onSuccess }: LogisticsAddFormPro
   const [name, setName] = useState('');
   const [category, setCategory] = useState(LOGISTIC_CATEGORIES[0]);
   const [unit, setUnit] = useState('pcs');
+  const [customUnit, setCustomUnit] = useState('');
+  const [isCustomUnit, setIsCustomUnit] = useState(false);
   const [quantity, setQuantity] = useState('10');
   const [minStock, setMinStock] = useState('5');
-  const [location, setLocation] = useState('Gudang Pantry');
+  const [locations, setLocations] = useState<string[]>(['Gudang Pantry']);
+  const [locationInput, setLocationInput] = useState('');
   const [notes, setNotes] = useState('');
   const [price, setPrice] = useState('');
 
@@ -89,7 +107,7 @@ export function LogisticsAddForm({ currentUser, onSuccess }: LogisticsAddFormPro
     async function loadData() {
       try {
         const [logRes, locRes] = await Promise.all([
-          portalFetch('/api/logistics?limit=100'),
+          portalFetch('/api/logistics?limit=1000'),
           portalFetch('/api/inventory/locations'),
         ]);
         const logData = await logRes.json();
@@ -111,7 +129,36 @@ export function LogisticsAddForm({ currentUser, onSuccess }: LogisticsAddFormPro
     const preset = PRESET_ITEMS.find((p) => p.name.toLowerCase() === val.toLowerCase());
     if (preset) {
       setCategory(preset.category);
-      setUnit(preset.unit);
+      if (LOGISTIC_UNITS.includes(preset.unit.toLowerCase())) {
+        setUnit(preset.unit.toLowerCase());
+        setIsCustomUnit(false);
+      } else {
+        setIsCustomUnit(true);
+        setCustomUnit(preset.unit);
+      }
+    }
+  };
+
+  const handleAddLocation = (locName: string) => {
+    const trimmed = locName.trim();
+    if (!trimmed) return;
+    if (!locations.includes(trimmed)) {
+      setLocations((prev) => [...prev, trimmed]);
+    }
+    setLocationInput('');
+  };
+
+  const handleRemoveLocation = (index: number) => {
+    setLocations((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleToggleLocation = (locName: string) => {
+    const trimmed = locName.trim();
+    if (!trimmed) return;
+    if (locations.includes(trimmed)) {
+      setLocations((prev) => prev.filter((l) => l !== trimmed));
+    } else {
+      setLocations((prev) => [...prev, trimmed]);
     }
   };
 
@@ -164,12 +211,15 @@ export function LogisticsAddForm({ currentUser, onSuccess }: LogisticsAddFormPro
       setErrorMessage('Kategori wajib dipilih.');
       return;
     }
-    if (!unit.trim()) {
+    const finalUnit = isCustomUnit ? (customUnit.trim() || 'pcs') : unit;
+    const effectiveLocs = locations.length > 0 ? locations : (locationInput.trim() ? [locationInput.trim()] : []);
+
+    if (!finalUnit.trim()) {
       setErrorMessage('Satuan wajib diisi.');
       return;
     }
-    if (!location.trim()) {
-      setErrorMessage('Lokasi wajib diisi.');
+    if (effectiveLocs.length === 0) {
+      setErrorMessage('Pilih atau ketik minimal satu lokasi penyimpanan.');
       return;
     }
     const qNum = parseInt(quantity, 10);
@@ -180,13 +230,14 @@ export function LogisticsAddForm({ currentUser, onSuccess }: LogisticsAddFormPro
 
     setIsSubmitting(true);
     try {
+      const finalLocString = effectiveLocs.join(', ');
       const formData = new FormData();
       formData.append('name', name.trim());
       formData.append('category', category.trim());
-      formData.append('unit', unit.trim());
+      formData.append('unit', finalUnit.trim());
       formData.append('quantity', String(qNum));
       formData.append('min_stock', String(parseInt(minStock, 10) || 5));
-      formData.append('location', location.trim());
+      formData.append('location', finalLocString);
       formData.append('notes', notes.trim());
       const rawPrice = price.replace(/[^0-9]/g, '');
       if (rawPrice) formData.append('price', rawPrice);
@@ -199,11 +250,13 @@ export function LogisticsAddForm({ currentUser, onSuccess }: LogisticsAddFormPro
       if (!existingNames.includes(name.trim())) {
         setExistingNames((prev) => [...prev, name.trim()].sort());
       }
-      if (location.trim() && !locationSuggestions.includes(location.trim())) {
-        setLocationSuggestions((prev) => [...prev, location.trim()].sort());
-      }
+      effectiveLocs.forEach((loc) => {
+        if (!locationSuggestions.includes(loc)) {
+          setLocationSuggestions((prev) => [...prev, loc].sort());
+        }
+      });
 
-      setSuccessMessage(`Berhasil menambahkan logistik: "${name.trim()}" (${qNum} ${unit})`);
+      setSuccessMessage(`Berhasil menambahkan logistik: "${name.trim()}" (${qNum} ${finalUnit})`);
 
       // Reset
       setName('');
@@ -214,9 +267,12 @@ export function LogisticsAddForm({ currentUser, onSuccess }: LogisticsAddFormPro
       handleRemovePhoto();
 
       if (!fastMode) {
-        setLocation('Gudang Pantry');
+        setLocations(['Gudang Pantry']);
+        setLocationInput('');
         setCategory(LOGISTIC_CATEGORIES[0]);
         setUnit('pcs');
+        setIsCustomUnit(false);
+        setCustomUnit('');
       }
 
       // Auto focus back on name input for the next item
@@ -340,148 +396,266 @@ export function LogisticsAddForm({ currentUser, onSuccess }: LogisticsAddFormPro
             <input
               ref={nameInputRef}
               type="text"
+              list="logistics-all-names-list"
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
               placeholder="Contoh: Kopi Kapal Api Sachet, Kertas A4..."
               required
               className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAE4D9] bg-white text-sm text-[#231F1A] focus:outline-none focus:ring-2 focus:ring-[#B8860B] transition"
             />
+            <datalist id="logistics-all-names-list">
+              {existingNames.map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
           </div>
 
-          {/* Kategori & Satuan */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-[#231F1A] mb-1">
-                Kategori <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAE4D9] bg-white text-xs font-medium text-[#231F1A] focus:outline-none focus:ring-2 focus:ring-[#B8860B]"
-              >
-                {LOGISTIC_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[#231F1A] mb-1">
-                Satuan Ukuran <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                placeholder="pcs / pack / botol / rim"
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAE4D9] bg-white text-xs text-[#231F1A] focus:outline-none focus:ring-2 focus:ring-[#B8860B]"
-              />
-            </div>
-          </div>
-
-          {/* Lokasi dengan Quick Chips */}
+          {/* Kategori */}
           <div>
             <label className="block text-xs font-semibold text-[#231F1A] mb-1">
-              Lokasi Penyimpanan <span className="text-red-500">*</span>
+              Kategori Logistik <span className="text-red-500">*</span>
             </label>
-            <Combobox
-              value={location}
-              onChange={setLocation}
-              options={allLocations}
-              placeholder="Contoh: Gudang Pantry, Lemari ATK..."
-              allowCreate
-            />
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAE4D9] bg-white text-xs font-medium text-[#231F1A] focus:outline-none focus:ring-2 focus:ring-[#B8860B]"
+            >
+              {LOGISTIC_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            {/* Quick Location Chips */}
+          {/* Lokasi Penyimpanan (Bisa beberapa lokasi & ada tombol silang ✕) */}
+          <div className="pt-1">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-[#231F1A]">
+                Lokasi Penyimpanan <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] text-[#70685C]">
+                {locations.length > 0 ? `${locations.length} lokasi dipilih` : 'Bisa pilih lebih dari satu'}
+              </span>
+            </div>
+
+            {/* Chips lokasi yang sudah ditambahkan dengan tombol silang ✕ */}
+            {locations.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-[#FAF9F5] border border-[#EAE4D9] mb-2 animate-in fade-in">
+                {locations.map((loc, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FAF6EC] border border-[#C5A059] text-xs font-semibold text-[#7A5805] shadow-2xs group"
+                  >
+                    <MapPin className="w-3 h-3 text-[#B8860B]" />
+                    <span>{loc}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveLocation(idx)}
+                      className="w-4 h-4 rounded-full bg-[#B8860B]/20 hover:bg-red-500 hover:text-white text-[#7A5805] inline-flex items-center justify-center transition ml-0.5"
+                      title={`Hapus / silang lokasi "${loc}"`}
+                    >
+                      <X className="w-3 h-3 stroke-[2.5]" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Input untuk menambah lokasi baru */}
+            <div className="flex gap-1.5">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={locationInput}
+                  onChange={(e) => setLocationInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddLocation(locationInput);
+                    }
+                  }}
+                  placeholder="Ketik lokasi (misal: Gudang Pantry, Lemari ATK) lalu Enter / Tambah..."
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#EAE4D9] bg-white text-xs text-[#231F1A] focus:outline-none focus:ring-2 focus:ring-[#B8860B]"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => handleAddLocation(locationInput)}
+                disabled={!locationInput.trim()}
+                className="px-3 py-2 rounded-xl bg-[#FAF6EC] border border-[#B8860B]/60 text-[#7A5805] hover:bg-[#B8860B] hover:text-white font-semibold text-xs transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" /> Tambah
+              </button>
+            </div>
+
+            {/* Quick Location Pills (klik untuk tambah / klik lagi untuk kurangi/silang) */}
             <div className="mt-2 flex flex-wrap gap-1.5 items-center">
               <span className="text-[10px] font-semibold text-[#70685C] mr-0.5 flex items-center gap-0.5">
-                <MapPin className="w-2.5 h-2.5 text-[#B8860B]" /> Cepat:
+                <MapPin className="w-2.5 h-2.5 text-[#B8860B]" /> Saran Cepat:
               </span>
-              {allLocations.map((loc) => (
-                <button
-                  key={loc}
-                  type="button"
-                  onClick={() => setLocation(loc)}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition ${
-                    location === loc
-                      ? 'bg-[#B8860B] text-white border-[#B8860B]'
-                      : 'bg-[#FAF9F5] border-[#EAE4D9] text-[#70685C] hover:border-[#B8860B] hover:text-[#B8860B]'
-                  }`}
-                >
-                  {loc}
-                </button>
-              ))}
+              {allLocations.map((loc) => {
+                const isSelected = locations.includes(loc);
+                return (
+                  <button
+                    key={loc}
+                    type="button"
+                    onClick={() => handleToggleLocation(loc)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-[#B8860B] text-white border-[#B8860B] shadow-2xs'
+                        : 'bg-white border-[#EAE4D9] text-[#70685C] hover:border-[#B8860B] hover:text-[#B8860B]'
+                    }`}
+                  >
+                    {isSelected ? <Check className="w-3 h-3 stroke-[2.5]" /> : <Plus className="w-3 h-3 opacity-60" />}
+                    {loc}
+                    {isSelected && <X className="w-2.5 h-2.5 ml-0.5 opacity-80" />}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Stok Awal & Peringatan Minimum */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            <div>
-              <label className="block text-xs font-semibold text-[#231F1A] mb-1">
-                Jumlah Stok Masuk <span className="text-red-500">*</span>
-              </label>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setQuantity(String(Math.max(0, (parseInt(quantity, 10) || 0) - 1)))}
-                  className="w-9 h-9 rounded-lg border border-[#EAE4D9] bg-[#FAF9F5] hover:bg-gray-100 flex items-center justify-center text-[#70685C] font-bold"
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-                <input
-                  type="number"
-                  min="0"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  required
-                  className="flex-1 px-3 py-2 rounded-lg border border-[#EAE4D9] bg-white text-center text-sm font-bold text-[#231F1A] focus:outline-none focus:ring-1 focus:ring-[#B8860B]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setQuantity(String((parseInt(quantity, 10) || 0) + 1))}
-                  className="w-9 h-9 rounded-lg border border-[#EAE4D9] bg-[#FAF9F5] hover:bg-gray-100 flex items-center justify-center text-[#70685C] font-bold"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
+          {/* Stok ("Hanya Jumlah") & Satuan Ukuran (pack / liter / kg / pcs / dll) */}
+          <div className="pt-1 border-t border-[#EAE4D9]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+              {/* Hanya Jumlah */}
+              <div>
+                <label className="block text-xs font-semibold text-[#231F1A] mb-1">
+                  Jumlah Stok Masuk <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(String(Math.max(0, (parseInt(quantity, 10) || 0) - 1)))}
+                    className="w-10 h-10 rounded-xl border border-[#EAE4D9] bg-[#FAF9F5] hover:bg-gray-100 flex items-center justify-center text-[#70685C] font-bold"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <input
+                    type="number"
+                    min="0"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    required
+                    placeholder="Contoh: 10, 20"
+                    className="flex-1 px-3 py-2 rounded-xl border border-[#EAE4D9] bg-white text-center text-base font-bold text-[#231F1A] focus:outline-none focus:ring-2 focus:ring-[#B8860B]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(String((parseInt(quantity, 10) || 0) + 1))}
+                    className="w-10 h-10 rounded-xl border border-[#EAE4D9] bg-[#FAF9F5] hover:bg-gray-100 flex items-center justify-center text-[#70685C] font-bold"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Quick Numbers */}
+                <div className="flex gap-1 mt-1.5">
+                  {[5, 10, 20, 50].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setQuantity(String(n))}
+                      className={`flex-1 py-1 rounded-lg text-xs font-bold border transition ${
+                        quantity === String(n)
+                          ? 'bg-[#B8860B] text-white border-[#B8860B]'
+                          : 'bg-white border-[#EAE4D9] text-[#70685C] hover:bg-[#FAF9F5]'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Quick Numbers */}
-              <div className="flex gap-1 mt-1.5">
-                {[5, 10, 20, 50].map((n) => (
+              {/* Satuan Ukuran (pack / liter / kg / pcs / lainnya) */}
+              <div>
+                <label className="block text-xs font-semibold text-[#231F1A] mb-1">
+                  Satuan <span className="text-red-500">*</span>
+                </label>
+
+                {/* Quick Unit Pills */}
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {LOGISTIC_UNITS.map((u) => {
+                    const isSelected = !isCustomUnit && unit.toLowerCase() === u.toLowerCase();
+                    return (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => {
+                          setUnit(u);
+                          setIsCustomUnit(false);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
+                          isSelected
+                            ? 'bg-[#B8860B] text-white border-[#B8860B] shadow-2xs'
+                            : 'bg-[#FAF9F5] border-[#EAE4D9] text-[#70685C] hover:border-[#B8860B] hover:text-[#B8860B]'
+                        }`}
+                      >
+                        {u}
+                      </button>
+                    );
+                  })}
                   <button
-                    key={n}
                     type="button"
-                    onClick={() => setQuantity(String(n))}
-                    className={`flex-1 py-0.5 rounded text-[10px] font-bold border ${
-                      quantity === String(n)
-                        ? 'bg-[#B8860B] text-white border-[#B8860B]'
-                        : 'bg-white border-[#EAE4D9] text-[#70685C] hover:bg-[#FAF9F5]'
+                    onClick={() => setIsCustomUnit(true)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
+                      isCustomUnit
+                        ? 'bg-[#B8860B] text-white border-[#B8860B] shadow-2xs'
+                        : 'bg-white border-dashed border-[#B8860B] text-[#B8860B] hover:bg-[#FAF6EC]'
                     }`}
                   >
-                    {n}
+                    + Lainnya
                   </button>
-                ))}
+                </div>
+
+                {/* Custom Unit Input */}
+                {isCustomUnit ? (
+                  <div className="flex items-center gap-1.5 animate-in fade-in">
+                    <input
+                      type="text"
+                      value={customUnit}
+                      onChange={(e) => setCustomUnit(e.target.value)}
+                      placeholder="Ketik satuan baru (contoh: gallon, tabung, karton)..."
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-[#B8860B] bg-white text-xs text-[#231F1A] focus:outline-none focus:ring-1 focus:ring-[#B8860B]"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomUnit(false);
+                        setCustomUnit('');
+                        setUnit('pcs');
+                      }}
+                      className="text-xs text-[#70685C] hover:text-red-600 px-2 py-1"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-[#70685C]">
+                    Satuan aktif: <span className="font-bold text-[#7A5805] bg-[#FAF6EC] px-1.5 py-0.5 rounded border border-[#E5D7B7]">{isCustomUnit ? (customUnit || 'pcs') : unit}</span>
+                  </p>
+                )}
               </div>
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-[#231F1A] mb-1">
-                Batas Minimum Peringatan Stok
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={minStock}
-                onChange={(e) => setMinStock(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAE4D9] bg-white text-xs text-[#231F1A] focus:outline-none focus:ring-2 focus:ring-[#B8860B]"
-              />
-              <span className="text-[10px] text-[#70685C] mt-1 block">
-                Jika stok di bawah angka ini, sistem otomatis memberi alert menipis.
-              </span>
-            </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#231F1A] mb-1">
+              Batas Minimum Peringatan Stok
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={minStock}
+              onChange={(e) => setMinStock(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAE4D9] bg-white text-xs text-[#231F1A] focus:outline-none focus:ring-2 focus:ring-[#B8860B]"
+            />
+            <span className="text-[10px] text-[#70685C] mt-1 block">
+              Jika stok di bawah angka ini, sistem otomatis memberi alert menipis.
+            </span>
           </div>
 
           {/* Catatan */}

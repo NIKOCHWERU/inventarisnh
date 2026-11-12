@@ -15,6 +15,11 @@ import {
   Sparkles,
   MapPin,
   Layers,
+  AlertTriangle,
+  X,
+  History,
+  Check,
+  Clock,
 } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
 import { portalFetch } from '@/lib/api-client';
@@ -55,6 +60,8 @@ const CONDITION_SUGGESTIONS = [
   'Perlu Servis',
 ];
 
+const INVENTORY_UNITS = ['PCS', 'SET', 'UNIT', 'BUAH', 'DUS', 'PAKET'];
+
 export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormProps) {
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
@@ -64,13 +71,25 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
   const [name, setName] = useState('');
   const [categoryName, setCategoryName] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [location, setLocation] = useState('');
+  const [locations, setLocations] = useState<string[]>([]);
+  const [locationInput, setLocationInput] = useState('');
   const [quantity, setQuantity] = useState('1');
+  const [unit, setUnit] = useState('PCS');
+  const [customUnit, setCustomUnit] = useState('');
+  const [isCustomUnit, setIsCustomUnit] = useState(false);
   const [condition, setCondition] = useState('Baik');
   const [notes, setNotes] = useState('');
   const [price, setPrice] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+  // History & Duplicate Prevention states (dari semua penginput di seluruh kantor)
+  const [historyItems, setHistoryItems] = useState<any[]>([]);
+  const [allItemNames, setAllItemNames] = useState<string[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const nameContainerRef = useRef<HTMLDivElement>(null);
+  const historyDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fast mode: keep location & category to speed up inputting multiple items
   const [fastMode, setFastMode] = useState(true);
@@ -85,7 +104,7 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch categories and locations on mount
+  // Fetch categories, locations, and initial history from ALL users on mount
   useEffect(() => {
     async function loadData() {
       try {
@@ -114,6 +133,7 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
       }
     }
     loadData();
+    fetchHistory('');
   }, []);
 
   // Whenever categoryName changes, resolve the category ID
@@ -146,6 +166,95 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
     }
   };
 
+  // Close history dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (nameContainerRef.current && !nameContainerRef.current.contains(event.target as Node)) {
+        setIsHistoryOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchHistory = async (q: string) => {
+    setIsLoadingHistory(true);
+    try {
+      const res = await portalFetch(`/api/inventory/history?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (data.success) {
+        if (data.items) setHistoryItems(data.items);
+        if (data.allNames && data.allNames.length > 0) {
+          setAllItemNames(data.allNames);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch history:', err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const handleNameChange = (val: string) => {
+    setName(val);
+    setIsHistoryOpen(true);
+    if (historyDebounceRef.current) clearTimeout(historyDebounceRef.current);
+    historyDebounceRef.current = setTimeout(() => {
+      fetchHistory(val.trim());
+    }, 180);
+  };
+
+  const handleNameFocus = () => {
+    setIsHistoryOpen(true);
+    fetchHistory(name.trim());
+  };
+
+  const handleApplyHistoryItem = (item: any) => {
+    setName(item.name);
+    setCategoryName(item.categoryName);
+    setCategoryId(item.categoryId);
+    if (item.unit) {
+      if (INVENTORY_UNITS.includes(item.unit.toUpperCase())) {
+        setUnit(item.unit.toUpperCase());
+        setIsCustomUnit(false);
+      } else {
+        setIsCustomUnit(true);
+        setCustomUnit(item.unit);
+      }
+    }
+    if (item.location) {
+      const parsedLocs = item.location.split(',').map((s: string) => s.trim()).filter(Boolean);
+      if (parsedLocs.length > 0) {
+        setLocations(parsedLocs);
+      }
+    }
+    setIsHistoryOpen(false);
+  };
+
+  // Multiple Locations Handlers
+  const handleAddLocation = (locName: string) => {
+    const trimmed = locName.trim();
+    if (!trimmed) return;
+    if (!locations.includes(trimmed)) {
+      setLocations((prev) => [...prev, trimmed]);
+    }
+    setLocationInput('');
+  };
+
+  const handleRemoveLocation = (index: number) => {
+    setLocations((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleToggleLocation = (locName: string) => {
+    const trimmed = locName.trim();
+    if (!trimmed) return;
+    if (locations.includes(trimmed)) {
+      setLocations((prev) => prev.filter((l) => l !== trimmed));
+    } else {
+      setLocations((prev) => [...prev, trimmed]);
+    }
+  };
+
   const [photoInfo, setPhotoInfo] = useState<string | null>(null);
   const [isCompressingPhoto, setIsCompressingPhoto] = useState(false);
 
@@ -165,7 +274,7 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
       const origMB = (res.originalSize / (1024 * 1024)).toFixed(1);
       const compKB = Math.round(res.compressedSize / 1024);
       setPhotoInfo(`⚡ Dioptimalkan: ${origMB}MB ➔ ${compKB}KB (Upload Cepat)`);
-    } catch (err) {
+    } catch {
       // Fallback
       setPhotoFile(file);
       const reader = new FileReader();
@@ -186,6 +295,13 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
     cameraInputRef.current && (cameraInputRef.current.value = '');
   };
 
+  const exactDuplicate = historyItems.find(
+    (h) => h.name.trim().toLowerCase() === name.trim().toLowerCase()
+  );
+
+  const effectiveLocations = locations.length > 0 ? locations : (locationInput.trim() ? [locationInput.trim()] : []);
+  const effectiveUnit = isCustomUnit ? (customUnit.trim() || 'PCS') : unit;
+
   const handleTriggerConfirmation = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -199,10 +315,12 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
       setErrorMessage('Kategori barang wajib diisi.');
       return;
     }
-    if (!location.trim()) {
-      setErrorMessage('Tempat / Lokasi barang wajib diisi.');
+
+    if (effectiveLocations.length === 0) {
+      setErrorMessage('Pilih atau ketik minimal satu tempat / lokasi barang.');
       return;
     }
+
     if (!condition.trim()) {
       setErrorMessage('Kondisi fisik barang wajib diisi atau dipilih.');
       return;
@@ -250,11 +368,14 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
         throw new Error('Kategori tidak valid. Pilih atau tambah kategori baru.');
       }
 
+      const finalLocStr = effectiveLocations.join(', ');
+
       const formData = new FormData();
       formData.append('name', name.trim());
       formData.append('category_id', finalCategoryId);
-      formData.append('location', location.trim());
+      formData.append('location', finalLocStr);
       formData.append('quantity', quantity);
+      formData.append('unit', effectiveUnit);
       formData.append('condition', condition.trim());
       if (notes.trim()) {
         formData.append('notes', notes.trim());
@@ -277,9 +398,11 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
         throw new Error(result.error || 'Gagal menyimpan data inventaris.');
       }
 
-      if (!locationSuggestions.includes(location.trim())) {
-        setLocationSuggestions((prev) => [...prev, location.trim()].sort());
-      }
+      effectiveLocations.forEach((loc) => {
+        if (!locationSuggestions.includes(loc)) {
+          setLocationSuggestions((prev) => [...prev, loc].sort());
+        }
+      });
 
       setIsConfirmOpen(false);
       setSuccessMessage(`Berhasil menyimpan barang: "${name.trim()}"!`);
@@ -292,9 +415,13 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
       handleRemovePhoto();
 
       if (!fastMode) {
-        setLocation('');
+        setLocations([]);
+        setLocationInput('');
         setCategoryName(categories[0]?.name || '');
         setCondition('Baik');
+        setUnit('PCS');
+        setIsCustomUnit(false);
+        setCustomUnit('');
       }
 
       // Auto focus back on name input for the next item
@@ -319,8 +446,9 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
     name: name.trim(),
     categoryId,
     categoryName: selectedCategoryName,
-    location: location.trim(),
+    location: effectiveLocations.join(', '),
     quantity: parseInt(quantity, 10) || 1,
+    unit: effectiveUnit,
     condition: condition.trim(),
     notes: notes.trim() || undefined,
     price: price.trim() ? parseFloat(price.replace(/[^0-9]/g, '')) : undefined,
@@ -330,7 +458,7 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
 
   const allLocationSuggestions = Array.from(
     new Set([...locationSuggestions, ...COMMON_LOCATIONS])
-  ).slice(0, 8);
+  ).slice(0, 10);
 
   return (
     <div className="max-w-xl mx-auto pb-8">
@@ -403,20 +531,146 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
         </div>
 
         <form onSubmit={handleTriggerConfirmation} className="p-5 space-y-4">
-          {/* Nama Barang */}
-          <div>
-            <label className="block text-xs font-semibold text-[#231F1A] mb-1">
-              Nama Barang <span className="text-red-500">*</span>
-            </label>
-            <input
-              ref={nameInputRef}
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Contoh: Laptop ThinkPad T14, Meja Kerja Staff..."
-              required
-              className="w-full px-3.5 py-2.5 rounded-xl border border-[#EAE4D9] bg-white text-sm text-[#231F1A] focus:outline-none focus:ring-2 focus:ring-[#B8860B] transition"
-            />
+          {/* Nama Barang dengan Autocomplete Histori & Pencegah Duplikat */}
+          <div ref={nameContainerRef} className="relative">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-[#231F1A]">
+                Nama Barang <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsHistoryOpen(true);
+                  fetchHistory('');
+                }}
+                className="text-[11px] text-[#B8860B] hover:underline flex items-center gap-1 font-medium"
+              >
+                <History className="w-3 h-3 text-[#B8860B]" />
+                Histori Input ({historyItems.length || 'Cek'})
+              </button>
+            </div>
+
+            <div className="relative">
+              <input
+                ref={nameInputRef}
+                type="text"
+                list="inventory-all-names-list"
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                onFocus={handleNameFocus}
+                placeholder="Contoh: Laptop ThinkPad T14, Meja Kerja Staff, Proyektor..."
+                required
+                className={`w-full px-3.5 py-2.5 rounded-xl border bg-white text-sm text-[#231F1A] focus:outline-none focus:ring-2 transition ${
+                  exactDuplicate ? 'border-amber-400 ring-1 ring-amber-300' : 'border-[#EAE4D9] focus:ring-[#B8860B]'
+                }`}
+              />
+              <datalist id="inventory-all-names-list">
+                {allItemNames.map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
+              {isLoadingHistory && (
+                <div className="absolute right-3 top-3">
+                  <div className="w-4 h-4 border-2 border-[#B8860B] border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
+
+            {/* Peringatan jika barang serupa/sama terdeteksi agar tidak double */}
+            {exactDuplicate && (
+              <div className="mt-1.5 p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2 animate-in fade-in">
+                <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-bold">⚠️ Perhatian: Barang "{exactDuplicate.name}" sudah pernah diinput!</p>
+                  <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                    Tercatat di: <strong>{exactDuplicate.location}</strong> ({exactDuplicate.quantity} {exactDuplicate.unit || 'PCS'}), diinput oleh <strong>{exactDuplicate.creatorName}</strong> ({new Date(exactDuplicate.createdAt).toLocaleDateString('id-ID')}).
+                    Pastikan Anda tidak memasukkan barang yang sama dua kali.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Dropdown Histori Barang Kantor */}
+            {isHistoryOpen && (
+              <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-white rounded-xl border border-[#C5A059] shadow-xl max-h-72 overflow-y-auto animate-in fade-in">
+                <div className="p-2.5 bg-[#FAF6EC] border-b border-[#EAE4D9] flex items-center justify-between sticky top-0 z-10">
+                  <span className="text-[11px] font-bold text-[#7A5805] flex items-center gap-1.5">
+                    <History className="w-3.5 h-3.5 text-[#B8860B]" />
+                    {name.trim()
+                      ? `Barang Serupa di Database (${historyItems.length} ditemukan):`
+                      : 'Histori Barang Terakhir yang Diinput Kantor (Semua Orang):'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsHistoryOpen(false)}
+                    className="p-1 rounded-md hover:bg-black/5 text-[#70685C] text-[10px] font-semibold"
+                  >
+                    Tutup ✕
+                  </button>
+                </div>
+
+                {isLoadingHistory ? (
+                  <div className="p-4 text-center text-xs text-[#70685C] flex items-center justify-center gap-2">
+                    <div className="w-3.5 h-3.5 border-2 border-[#B8860B] border-t-transparent rounded-full animate-spin" />
+                    Memuat riwayat inventaris...
+                  </div>
+                ) : historyItems.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-[#70685C]">
+                    {name.trim()
+                      ? `Belum ada barang dengan nama mirip "${name}". Aman untuk diinput (bukan duplikat).`
+                      : 'Belum ada data barang sebelumnya.'}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#EAE4D9]">
+                    {historyItems.map((item) => {
+                      const isExact = item.name.toLowerCase() === name.trim().toLowerCase();
+                      return (
+                        <div
+                          key={item.id}
+                          className={`p-2.5 hover:bg-[#FAF9F5] transition text-xs flex items-start justify-between gap-2 ${
+                            isExact ? 'bg-amber-50/70' : ''
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-[#231F1A]">{item.name}</span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#FAF6EC] text-[#7A5805] border border-[#E5D7B7]">
+                                {item.categoryName}
+                              </span>
+                              {isExact && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 border border-amber-300">
+                                  SUDAH TERDAFTAR
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-[#70685C] mt-0.5 flex items-center gap-2 flex-wrap">
+                              <span className="flex items-center gap-0.5">
+                                <MapPin className="w-2.5 h-2.5 text-[#B8860B]" /> {item.location}
+                              </span>
+                              <span>•</span>
+                              <span>{item.quantity} {item.unit || 'PCS'}</span>
+                              <span>•</span>
+                              <span className="text-[#8C8273]">
+                                Diinput: {item.creatorName} ({new Date(item.createdAt).toLocaleDateString('id-ID')})
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleApplyHistoryItem(item)}
+                            className="px-2 py-1 rounded-lg bg-white border border-[#EAE4D9] hover:border-[#B8860B] hover:text-[#B8860B] text-[10px] font-semibold text-[#70685C] flex-shrink-0 transition"
+                            title="Salin kategori & lokasi barang ini"
+                          >
+                            Gunakan Data
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Kategori — Combobox */}
@@ -435,91 +689,219 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
             />
           </div>
 
-          {/* Tempat / Lokasi dengan Quick Chips */}
-          <div>
-            <label className="block text-xs font-semibold text-[#231F1A] mb-1">
-              Tempat / Lokasi Ruangan <span className="text-red-500">*</span>
-            </label>
-            <Combobox
-              value={location}
-              onChange={setLocation}
-              options={allLocationSuggestions}
-              placeholder="Contoh: Ruang Rapat Lt. 1, Gudang Utama..."
-              allowCreate
-            />
+          {/* Tempat / Lokasi Ruangan (Bisa beberapa lokasi & ada tombol silang ✕) */}
+          <div className="pt-1">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-[#231F1A]">
+                Tempat / Lokasi Ruangan <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] text-[#70685C]">
+                {effectiveLocations.length > 0 ? `${effectiveLocations.length} lokasi dipilih` : 'Bisa pilih lebih dari satu'}
+              </span>
+            </div>
 
-            {/* Quick Location Pills */}
+            {/* Chips lokasi yang sudah ditambahkan dengan tombol silang ✕ */}
+            {locations.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-[#FAF9F5] border border-[#EAE4D9] mb-2 animate-in fade-in">
+                {locations.map((loc, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#FAF6EC] border border-[#C5A059] text-xs font-semibold text-[#7A5805] shadow-2xs group"
+                  >
+                    <MapPin className="w-3 h-3 text-[#B8860B]" />
+                    <span>{loc}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveLocation(idx)}
+                      className="w-4 h-4 rounded-full bg-[#B8860B]/20 hover:bg-red-500 hover:text-white text-[#7A5805] inline-flex items-center justify-center transition ml-0.5"
+                      title={`Hapus / silang lokasi "${loc}"`}
+                    >
+                      <X className="w-3 h-3 stroke-[2.5]" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Input untuk menambah lokasi baru */}
+            <div className="flex gap-1.5">
+              <div className="flex-1">
+                <input
+                  type="text"
+                  value={locationInput}
+                  onChange={(e) => setLocationInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddLocation(locationInput);
+                    }
+                  }}
+                  placeholder="Ketik lokasi (misal: Ruang Rapat Lt. 1, Gudang A) lalu tekan Enter / Tambah..."
+                  className="w-full px-3.5 py-2 rounded-xl border border-[#EAE4D9] bg-white text-xs text-[#231F1A] focus:outline-none focus:ring-2 focus:ring-[#B8860B]"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => handleAddLocation(locationInput)}
+                disabled={!locationInput.trim()}
+                className="px-3 py-2 rounded-xl bg-[#FAF6EC] border border-[#B8860B]/60 text-[#7A5805] hover:bg-[#B8860B] hover:text-white font-semibold text-xs transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" /> Tambah
+              </button>
+            </div>
+
+            {/* Quick Location Pills (klik untuk tambah / klik lagi untuk kurangi/silang) */}
             <div className="mt-2 flex flex-wrap gap-1.5 items-center">
               <span className="text-[10px] font-semibold text-[#70685C] mr-0.5 flex items-center gap-0.5">
-                <MapPin className="w-2.5 h-2.5 text-[#B8860B]" /> Cepat:
+                <MapPin className="w-2.5 h-2.5 text-[#B8860B]" /> Saran Cepat:
               </span>
-              {allLocationSuggestions.map((loc) => (
-                <button
-                  key={loc}
-                  type="button"
-                  onClick={() => setLocation(loc)}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition ${
-                    location === loc
-                      ? 'bg-[#B8860B] text-white border-[#B8860B]'
-                      : 'bg-[#FAF9F5] border-[#EAE4D9] text-[#70685C] hover:border-[#B8860B] hover:text-[#B8860B]'
-                  }`}
-                >
-                  {loc}
-                </button>
-              ))}
+              {allLocationSuggestions.map((loc) => {
+                const isSelected = locations.includes(loc);
+                return (
+                  <button
+                    key={loc}
+                    type="button"
+                    onClick={() => handleToggleLocation(loc)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-[#B8860B] text-white border-[#B8860B] shadow-2xs'
+                        : 'bg-white border-[#EAE4D9] text-[#70685C] hover:border-[#B8860B] hover:text-[#B8860B]'
+                    }`}
+                  >
+                    {isSelected ? <Check className="w-3 h-3 stroke-[2.5]" /> : <Plus className="w-3 h-3 opacity-60" />}
+                    {loc}
+                    {isSelected && <X className="w-2.5 h-2.5 ml-0.5 opacity-80" />}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Jumlah & Kondisi */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-            {/* Quantity with Steppers */}
-            <div>
-              <label className="block text-xs font-semibold text-[#231F1A] mb-1">
-                Jumlah Unit <span className="text-red-500">*</span>
-              </label>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setQuantity(String(Math.max(1, (parseInt(quantity, 10) || 1) - 1)))}
-                  className="w-9 h-9 rounded-lg border border-[#EAE4D9] bg-[#FAF9F5] hover:bg-gray-100 flex items-center justify-center text-[#70685C] font-bold"
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-                <input
-                  type="number"
-                  min="1"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  required
-                  className="flex-1 px-3 py-2 rounded-lg border border-[#EAE4D9] bg-white text-center text-sm font-bold text-[#231F1A] focus:outline-none focus:ring-1 focus:ring-[#B8860B]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setQuantity(String((parseInt(quantity, 10) || 1) + 1))}
-                  className="w-9 h-9 rounded-lg border border-[#EAE4D9] bg-[#FAF9F5] hover:bg-gray-100 flex items-center justify-center text-[#70685C] font-bold"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
+          {/* Jumlah ("Hanya Jumlah") & Satuan (PCS / SET / lainnya custom) */}
+          <div className="pt-1 border-t border-[#EAE4D9]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+              {/* Hanya Jumlah */}
+              <div>
+                <label className="block text-xs font-semibold text-[#231F1A] mb-1">
+                  Jumlah Barang <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(String(Math.max(1, (parseInt(quantity, 10) || 1) - 1)))}
+                    className="w-10 h-10 rounded-xl border border-[#EAE4D9] bg-[#FAF9F5] hover:bg-gray-100 flex items-center justify-center text-[#70685C] font-bold"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    required
+                    placeholder="Contoh: 1, 2, 5"
+                    className="flex-1 px-3 py-2 rounded-xl border border-[#EAE4D9] bg-white text-center text-base font-bold text-[#231F1A] focus:outline-none focus:ring-2 focus:ring-[#B8860B]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(String((parseInt(quantity, 10) || 1) + 1))}
+                    className="w-10 h-10 rounded-xl border border-[#EAE4D9] bg-[#FAF9F5] hover:bg-gray-100 flex items-center justify-center text-[#70685C] font-bold"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Quick Numbers */}
+                <div className="flex gap-1 mt-1.5">
+                  {[1, 2, 5, 10].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setQuantity(String(n))}
+                      className={`flex-1 py-1 rounded-lg text-xs font-bold border transition ${
+                        quantity === String(n)
+                          ? 'bg-[#B8860B] text-white border-[#B8860B]'
+                          : 'bg-white border-[#EAE4D9] text-[#70685C] hover:bg-[#FAF9F5]'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Quick Numbers */}
-              <div className="flex gap-1 mt-1.5">
-                {[1, 2, 5, 10].map((n) => (
+              {/* Satuan Barang (PCS / SET / lainnya custom) */}
+              <div>
+                <label className="block text-xs font-semibold text-[#231F1A] mb-1">
+                  Satuan <span className="text-red-500">*</span>
+                </label>
+
+                {/* Quick Unit Pills */}
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {INVENTORY_UNITS.map((u) => {
+                    const isSelected = !isCustomUnit && unit.toUpperCase() === u;
+                    return (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => {
+                          setUnit(u);
+                          setIsCustomUnit(false);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
+                          isSelected
+                            ? 'bg-[#B8860B] text-white border-[#B8860B] shadow-2xs'
+                            : 'bg-[#FAF9F5] border-[#EAE4D9] text-[#70685C] hover:border-[#B8860B] hover:text-[#B8860B]'
+                        }`}
+                      >
+                        {u}
+                      </button>
+                    );
+                  })}
                   <button
-                    key={n}
                     type="button"
-                    onClick={() => setQuantity(String(n))}
-                    className={`flex-1 py-0.5 rounded text-[10px] font-bold border ${
-                      quantity === String(n)
-                        ? 'bg-[#B8860B] text-white border-[#B8860B]'
-                        : 'bg-white border-[#EAE4D9] text-[#70685C] hover:bg-[#FAF9F5]'
+                    onClick={() => setIsCustomUnit(true)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
+                      isCustomUnit
+                        ? 'bg-[#B8860B] text-white border-[#B8860B] shadow-2xs'
+                        : 'bg-white border-dashed border-[#B8860B] text-[#B8860B] hover:bg-[#FAF6EC]'
                     }`}
                   >
-                    {n}
+                    + Lainnya
                   </button>
-                ))}
+                </div>
+
+                {/* Custom Unit Input */}
+                {isCustomUnit ? (
+                  <div className="flex items-center gap-1.5 animate-in fade-in">
+                    <input
+                      type="text"
+                      value={customUnit}
+                      onChange={(e) => setCustomUnit(e.target.value)}
+                      placeholder="Ketik satuan (contoh: Roll, Lusin, Rim, Box)..."
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-[#B8860B] bg-white text-xs text-[#231F1A] focus:outline-none focus:ring-1 focus:ring-[#B8860B]"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomUnit(false);
+                        setCustomUnit('');
+                        setUnit('PCS');
+                      }}
+                      className="text-xs text-[#70685C] hover:text-red-600 px-2 py-1"
+                    >
+                      Batal
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-[#70685C]">
+                    Satuan aktif: <span className="font-bold text-[#7A5805] bg-[#FAF6EC] px-1.5 py-0.5 rounded border border-[#E5D7B7]">{effectiveUnit}</span>
+                  </p>
+                )}
               </div>
             </div>
+          </div>
 
             {/* Condition with Manual Input & Suggestion Chips */}
             <div>
@@ -564,7 +946,6 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
                 })}
               </div>
             </div>
-          </div>
 
           {/* Catatan / Keterangan Tambahan */}
           <div className="pt-2 border-t border-[#EAE4D9]">
