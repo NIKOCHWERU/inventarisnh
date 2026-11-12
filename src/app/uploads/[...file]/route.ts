@@ -7,12 +7,17 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: Request,
-  { params }: { params: { file: string[] } }
+  { params }: { params: { file: string[] | string } }
 ) {
   try {
-    const filePathSegment = Array.isArray(params.file) ? params.file.join('/') : params.file;
-    const sanitizedName = path.basename(filePathSegment);
-    const resolvedPath = await resolvePhotoAbsolutePath(`/uploads/${sanitizedName}`);
+    const rawSegments = Array.isArray(params.file) ? params.file : [params.file];
+    // Sanitize each segment to prevent path traversal
+    const safeSegments = rawSegments
+      .map((s) => s.replace(/(\.\.[\/\\])+/g, '').replace(/[\/\\]/g, ''))
+      .filter(Boolean);
+
+    const relativeSubPath = safeSegments.join('/');
+    const resolvedPath = await resolvePhotoAbsolutePath(`/uploads/${relativeSubPath}`);
 
     if (!resolvedPath || !fs.existsSync(resolvedPath)) {
       return new NextResponse('File tidak ditemukan.', { status: 404 });

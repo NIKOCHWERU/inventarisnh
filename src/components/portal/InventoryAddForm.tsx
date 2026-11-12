@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
 import { portalFetch } from '@/lib/api-client';
+import { compressImage } from '@/lib/image-compress';
 
 interface CategoryOption {
   id: string;
@@ -145,29 +146,44 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
     }
   };
 
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [photoInfo, setPhotoInfo] = useState<string | null>(null);
+  const [isCompressingPhoto, setIsCompressingPhoto] = useState(false);
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setErrorMessage('Ukuran file foto maksimal 5 MB.');
-      return;
-    }
-
-    setPhotoFile(file);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setPhotoPreview(event.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    setIsCompressingPhoto(true);
     setErrorMessage(null);
+
+    try {
+      // Otomatis kompres foto resolusi kamera HP (misal 5-15MB) menjadi ~150-250KB JPEG
+      const res = await compressImage(file, { maxWidth: 1280, maxHeight: 1280, quality: 0.78 });
+      setPhotoFile(res.file);
+      setPhotoPreview(res.previewUrl);
+
+      const origMB = (res.originalSize / (1024 * 1024)).toFixed(1);
+      const compKB = Math.round(res.compressedSize / 1024);
+      setPhotoInfo(`⚡ Dioptimalkan: ${origMB}MB ➔ ${compKB}KB (Upload Cepat)`);
+    } catch (err) {
+      // Fallback
+      setPhotoFile(file);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setPhotoPreview(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsCompressingPhoto(false);
+    }
   };
 
   const handleRemovePhoto = () => {
     setPhotoFile(null);
     setPhotoPreview(null);
+    setPhotoInfo(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    if (cameraInputRef.current) cameraInputRef.current.value = '';
+    cameraInputRef.current && (cameraInputRef.current.value = '');
   };
 
   const handleTriggerConfirmation = (e: React.FormEvent) => {
@@ -617,7 +633,12 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
               className="hidden"
             />
 
-            {!photoPreview ? (
+            {isCompressingPhoto ? (
+              <div className="p-6 rounded-xl border border-dashed border-[#B8860B] bg-[#FAF6EC] flex flex-col items-center justify-center gap-2 text-center animate-pulse">
+                <div className="w-6 h-6 border-2 border-[#B8860B] border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs font-semibold text-[#7A5805]">Mengoptimalkan resolusi foto agar ringan...</span>
+              </div>
+            ) : !photoPreview ? (
               <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
@@ -638,20 +659,27 @@ export function InventoryAddForm({ currentUser, onSuccess }: InventoryAddFormPro
                 </button>
               </div>
             ) : (
-              <div className="relative rounded-xl border border-[#EAE4D9] overflow-hidden bg-black/5 flex items-center justify-center h-44">
-                <img
-                  src={photoPreview}
-                  alt="Preview"
-                  className="w-full h-full object-contain"
-                />
-                <button
-                  type="button"
-                  onClick={handleRemovePhoto}
-                  className="absolute top-2.5 right-2.5 p-2 rounded-full bg-red-600 text-white shadow-md hover:bg-red-700 transition"
-                  title="Hapus Foto"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+              <div className="space-y-1.5">
+                <div className="relative rounded-xl border border-[#EAE4D9] overflow-hidden bg-black/5 flex items-center justify-center h-44">
+                  <img
+                    src={photoPreview}
+                    alt="Preview"
+                    className="w-full h-full object-contain"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRemovePhoto}
+                    className="absolute top-2.5 right-2.5 p-2 rounded-full bg-red-600 text-white shadow-md hover:bg-red-700 transition"
+                    title="Hapus Foto"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+                {photoInfo && (
+                  <p className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 rounded-md px-2.5 py-1 flex items-center gap-1">
+                    {photoInfo}
+                  </p>
+                )}
               </div>
             )}
           </div>

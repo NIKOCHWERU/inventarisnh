@@ -21,6 +21,7 @@ import {
 import { LogisticsEditModal, LogisticItem } from './LogisticsEditModal';
 import { formatRupiah } from '@/lib/format';
 import { portalFetch } from '@/lib/api-client';
+import { formatPhotoUrl } from '@/lib/base-path';
 
 interface LogisticsListPortalProps {
   currentUser: { id: string; name: string; role: string };
@@ -302,7 +303,7 @@ export function LogisticsListPortal({ currentUser }: LogisticsListPortalProps) {
                 <div className="relative aspect-4/3 w-full bg-[#FAF9F5] overflow-hidden border-b border-[#EAE4D9]">
                   {item.photo_path ? (
                     <img
-                      src={item.photo_path}
+                      src={formatPhotoUrl(item.photo_path)}
                       alt={item.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
@@ -439,7 +440,7 @@ export function LogisticsListPortal({ currentUser }: LogisticsListPortalProps) {
                 <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-[#FAF9F5] border border-[#EAE4D9] overflow-hidden flex-shrink-0 flex items-center justify-center relative">
                   {item.photo_path ? (
                     <img
-                      src={item.photo_path}
+                      src={formatPhotoUrl(item.photo_path)}
                       alt={item.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     />
@@ -573,7 +574,7 @@ export function LogisticsListPortal({ currentUser }: LogisticsListPortalProps) {
             {detailItem.photo_path ? (
               <div className="rounded-xl overflow-hidden bg-[#FAF9F5] border border-[#EAE4D9] max-h-64 flex items-center justify-center">
                 <img
-                  src={detailItem.photo_path}
+                  src={formatPhotoUrl(detailItem.photo_path)}
                   alt={detailItem.name}
                   className="w-full max-h-64 object-contain"
                 />

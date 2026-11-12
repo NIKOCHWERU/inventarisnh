@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { formatRupiah } from '@/lib/format';
 import { portalFetch } from '@/lib/api-client';
+import { formatPhotoUrl } from '@/lib/base-path';
 
 interface InventoryItem {
   no: number;
@@ -297,7 +298,7 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
                 <div className="relative aspect-4/3 w-full bg-[#FAF9F5] overflow-hidden border-b border-[#EAE4D9]">
                   {item.photoPath ? (
                     <img
-                      src={item.photoPath}
+                      src={formatPhotoUrl(item.photoPath)}
                       alt={item.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
@@ -391,7 +392,7 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
                 <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-[#FAF9F5] border border-[#EAE4D9] overflow-hidden flex-shrink-0 flex items-center justify-center relative">
                   {item.photoPath ? (
                     <img
-                      src={item.photoPath}
+                      src={formatPhotoUrl(item.photoPath)}
                       alt={item.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     />
@@ -500,7 +501,7 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
             {detailItem.photoPath ? (
               <div className="rounded-xl overflow-hidden bg-[#FAF9F5] border border-[#EAE4D9] max-h-64 flex items-center justify-center">
                 <img
-                  src={detailItem.photoPath}
+                  src={formatPhotoUrl(detailItem.photoPath)}
                   alt={detailItem.name}
                   className="w-full max-h-64 object-contain"
                 />

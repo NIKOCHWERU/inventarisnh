@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { ConditionBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { formatPhotoUrl } from '@/lib/base-path';
 
 export default function AdminDashboardPage() {
   const [data, setData] = useState<any>(null);
@@ -386,7 +387,7 @@ export default function AdminDashboardPage() {
                     <div className="flex items-center gap-3 min-w-0">
                       {item.photoPath ? (
                         <img
-                          src={item.photoPath}
+                          src={formatPhotoUrl(item.photoPath)}
                           alt={item.name}
                           className="w-10 h-10 rounded-lg object-cover border border-[#EAE4D9] flex-shrink-0"
                         />

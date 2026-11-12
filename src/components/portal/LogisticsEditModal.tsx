@@ -5,6 +5,8 @@ import { X, Camera, Image as ImageIcon, Trash2, Package, Minus, Plus } from 'luc
 import { Button } from '@/components/ui/Button';
 import { Combobox } from '@/components/ui/Combobox';
 import { formatRupiah } from '@/lib/format';
+import { formatPhotoUrl } from '@/lib/base-path';
+import { compressImage } from '@/lib/image-compress';
 
 const LOGISTIC_CATEGORIES = [
   'Makanan & Minuman',
@@ -80,16 +82,20 @@ export function LogisticsEditModal({
     return () => { document.body.style.overflow = ''; };
   }, []);
 
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { setError('Foto maksimal 5 MB.'); return; }
-    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowed.includes(file.type)) { setError('Hanya JPEG, PNG, WebP.'); return; }
     setError(null);
-    setNewPhotoFile(file);
-    setNewPhotoPreview(URL.createObjectURL(file));
-    setRemovePhoto(false);
+    try {
+      const res = await compressImage(file, { maxWidth: 1280, maxHeight: 1280, quality: 0.78 });
+      setNewPhotoFile(res.file);
+      setNewPhotoPreview(res.previewUrl);
+      setRemovePhoto(false);
+    } catch {
+      setNewPhotoFile(file);
+      setNewPhotoPreview(URL.createObjectURL(file));
+      setRemovePhoto(false);
+    }
   };
 
   const handleRemoveNewPhoto = () => {
@@ -318,7 +324,7 @@ export function LogisticsEditModal({
               {/* Current photo (if no new photo selected) */}
               {!newPhotoPreview && currentPhotoPath && (
                 <div className="relative rounded-xl border border-[#EAE4D9] overflow-hidden mb-2">
-                  <img src={currentPhotoPath} alt="Foto saat ini" className="w-full max-h-48 object-contain bg-[#FAF9F5]" />
+                  <img src={formatPhotoUrl(currentPhotoPath)} alt="Foto saat ini" className="w-full max-h-48 object-contain bg-[#FAF9F5]" />
                   <div className="absolute top-2 right-2">
                     <button
                       type="button"

@@ -153,6 +153,13 @@ server {
         expires 365d;
         access_log off;
     }
+
+    # Fallback rute foto /uploads langsung
+    location /uploads {
+        proxy_pass http://127.0.0.1:3829/inventaris-nh/uploads;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
 }
 ```
 

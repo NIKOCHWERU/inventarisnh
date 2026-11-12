@@ -22,6 +22,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { LogisticsEditModal } from '@/components/portal/LogisticsEditModal';
 import { formatRupiah } from '@/lib/format';
+import { formatPhotoUrl } from '@/lib/base-path';
 
 const LOGISTIC_CATEGORIES = [
   'Semua Kategori',
@@ -398,7 +399,7 @@ export default function AdminLogisticsPage() {
                               title="Klik untuk memperbesar foto"
                             >
                               <img
-                                src={item.photo_path}
+                                src={formatPhotoUrl(item.photo_path)}
                                 alt={item.name}
                                 className="w-full h-full object-cover group-hover:scale-105 transition"
                               />
@@ -566,7 +567,7 @@ export default function AdminLogisticsPage() {
                           className="w-full h-full block focus:outline-none cursor-pointer"
                         >
                           <img
-                            src={item.photo_path}
+                            src={formatPhotoUrl(item.photo_path)}
                             alt={item.name}
                             className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                           />
@@ -893,7 +894,7 @@ export default function AdminLogisticsPage() {
               ✕
             </button>
             <img
-              src={previewPhoto}
+              src={formatPhotoUrl(previewPhoto)}
               alt="Preview"
               className="rounded-xl max-h-[80vh] w-auto object-contain mx-auto"
             />

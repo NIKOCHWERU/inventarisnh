@@ -25,6 +25,8 @@ import { Button } from '@/components/ui/Button';
 import { ConditionBadge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { formatRupiah } from '@/lib/format';
+import { formatPhotoUrl } from '@/lib/base-path';
+import { compressImage } from '@/lib/image-compress';
 
 export default function AdminInventoryPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -600,7 +602,7 @@ export default function AdminInventoryPage() {
                           className="w-10 h-10 rounded-md overflow-hidden border border-[#EAE4D9] bg-[#FAF9F5] inline-flex items-center justify-center hover:opacity-80"
                         >
                           <img
-                            src={item.photoPath}
+                            src={formatPhotoUrl(item.photoPath)}
                             alt={item.name}
                             className="w-full h-full object-cover"
                           />
@@ -725,7 +727,7 @@ export default function AdminInventoryPage() {
             <div className="flex flex-col sm:flex-row gap-4 items-start">
               {detailItem.photoPath ? (
                 <img
-                  src={detailItem.photoPath}
+                  src={formatPhotoUrl(detailItem.photoPath)}
                   alt={detailItem.name}
                   className="w-full sm:w-40 h-40 object-cover rounded-lg border border-[#EAE4D9]"
                 />
@@ -1010,7 +1012,7 @@ export default function AdminInventoryPage() {
             {editPhotoPreview && !editRemovePhoto ? (
               <div className="flex items-center gap-3 p-2 border border-[#EAE4D9] rounded-lg bg-[#FAF9F5]">
                 <img
-                  src={editPhotoPreview}
+                  src={formatPhotoUrl(editPhotoPreview)}
                   alt="Preview"
                   className="w-14 h-14 object-cover rounded"
                 />
@@ -1028,11 +1030,17 @@ export default function AdminInventoryPage() {
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    setEditPhotoFile(file);
-                    setEditPhotoPreview(URL.createObjectURL(file));
+                    try {
+                      const res = await compressImage(file, { maxWidth: 1280, maxHeight: 1280, quality: 0.78 });
+                      setEditPhotoFile(res.file);
+                      setEditPhotoPreview(res.previewUrl);
+                    } catch {
+                      setEditPhotoFile(file);
+                      setEditPhotoPreview(URL.createObjectURL(file));
+                    }
                     setEditRemovePhoto(false);
                   }
                 }}
@@ -1254,7 +1262,7 @@ export default function AdminInventoryPage() {
         >
           <div className="relative max-w-lg w-full bg-white rounded-xl overflow-hidden p-2">
             <img
-              src={previewPhoto}
+              src={formatPhotoUrl(previewPhoto)}
               alt="Foto Detail"
               className="w-full max-h-[75vh] object-contain rounded-lg"
             />
