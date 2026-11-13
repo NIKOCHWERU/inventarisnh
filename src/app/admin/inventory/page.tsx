@@ -21,6 +21,7 @@ import {
   X,
   History,
 } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { ConditionBadge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
@@ -28,7 +29,8 @@ import { formatRupiah } from '@/lib/format';
 import { formatPhotoUrl } from '@/lib/base-path';
 import { compressImage } from '@/lib/image-compress';
 
-export default function AdminInventoryPage() {
+function AdminInventoryContent() {
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -71,6 +73,7 @@ export default function AdminInventoryPage() {
   const [editCategoryId, setEditCategoryId] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editQuantity, setEditQuantity] = useState('1');
+  const [editUnit, setEditUnit] = useState('PCS');
   const [editCondition, setEditCondition] = useState('Baik');
   const [editNotes, setEditNotes] = useState('');
   const [editPrice, setEditPrice] = useState('');
@@ -131,6 +134,18 @@ export default function AdminInventoryPage() {
   }, []);
 
   useEffect(() => {
+    const urlCondition = searchParams.get('condition');
+    const urlCategory = searchParams.get('category_id');
+    const urlEmployee = searchParams.get('created_by');
+    const urlSearch = searchParams.get('search');
+
+    if (urlCondition) setCondition(urlCondition);
+    if (urlCategory) setCategoryId(urlCategory);
+    if (urlEmployee) setCreatedBy(urlEmployee);
+    if (urlSearch) setSearch(urlSearch);
+  }, [searchParams]);
+
+  useEffect(() => {
     loadInventories();
   }, [page, categoryId, condition, createdBy, sortBy, sortOrder]);
 
@@ -184,6 +199,7 @@ export default function AdminInventoryPage() {
     setEditCategoryId(item.categoryId);
     setEditLocation(item.location);
     setEditQuantity(item.quantity.toString());
+    setEditUnit(item.unit || 'PCS');
     setEditCondition(item.condition);
     setEditNotes(item.notes || '');
     setEditPrice(
@@ -209,6 +225,7 @@ export default function AdminInventoryPage() {
       formData.append('category_id', editCategoryId);
       formData.append('location', editLocation.trim());
       formData.append('quantity', editQuantity);
+      formData.append('unit', editUnit.trim() || 'PCS');
       formData.append('condition', editCondition.trim());
       formData.append('notes', editNotes.trim());
       const rawPrice = editPrice.replace(/[^0-9]/g, '');
@@ -457,6 +474,7 @@ export default function AdminInventoryPage() {
             >
               <option value="all">Semua Kondisi</option>
               <option value="Baik">Baik</option>
+              <option value="Rusak">Semua Rusak (Ringan & Berat)</option>
               <option value="Rusak Ringan">Rusak Ringan</option>
               <option value="Rusak Berat">Rusak Berat</option>
               <option value="Perlu Perbaikan">Perlu Perbaikan</option>
@@ -631,7 +649,9 @@ export default function AdminInventoryPage() {
                     </td>
                     <td className="py-3 px-3 text-[#70685C]">{item.location}</td>
                     <td className="py-3 px-3 text-right font-semibold text-[#231F1A]">
-                      <div>{item.quantity} Unit</div>
+                      <div>
+                        {item.quantity} <span className="text-[10px] text-[#70685C] font-semibold uppercase">{item.unit || 'PCS'}</span>
+                      </div>
                       {item.price !== null && item.price !== undefined && (
                         <div className="text-[10px] text-[#2B6336] font-bold">
                           {formatRupiah(item.price)}
@@ -764,7 +784,7 @@ export default function AdminInventoryPage() {
                   <div>
                     <span className="text-[#70685C] block">Jumlah</span>
                     <span className="font-bold text-[#231F1A]">
-                      {detailItem.quantity} Unit
+                      {detailItem.quantity} <span className="text-xs font-semibold text-[#70685C] uppercase">{detailItem.unit || 'PCS'}</span>
                     </span>
                   </div>
                   <div>
@@ -914,7 +934,7 @@ export default function AdminInventoryPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-medium text-[#231F1A] mb-1">
-                Jumlah (Unit)
+                Jumlah
               </label>
               <input
                 type="number"
@@ -926,38 +946,66 @@ export default function AdminInventoryPage() {
             </div>
             <div>
               <label className="block font-medium text-[#231F1A] mb-1">
-                Kondisi Fisik Barang
+                Satuan (Pcs / Set / Unit / dll)
               </label>
               <input
                 type="text"
-                list="admin-condition-suggestions"
-                value={editCondition}
-                onChange={(e) => setEditCondition(e.target.value)}
-                placeholder="Ketik kondisi atau pilih saran..."
+                list="admin-unit-suggestions"
+                value={editUnit}
+                onChange={(e) => setEditUnit(e.target.value)}
+                placeholder="Contoh: PCS, SET..."
                 className="w-full px-3 py-2 rounded-lg border border-[#EAE4D9] text-xs text-[#231F1A] focus:ring-1 focus:ring-[#B8860B]"
               />
-              <datalist id="admin-condition-suggestions">
-                <option value="Baik" />
-                <option value="Rusak Ringan" />
-                <option value="Rusak Berat" />
-                <option value="Perlu Perbaikan" />
-                <option value="Baru" />
-                <option value="Bekas Normal" />
-                <option value="Lecet Pemakaian" />
-                <option value="Perlu Servis" />
+              <datalist id="admin-unit-suggestions">
+                <option value="PCS" />
+                <option value="SET" />
+                <option value="UNIT" />
+                <option value="BUAH" />
+                <option value="DUS" />
+                <option value="PAKET" />
+                <option value="BOX" />
+                <option value="RIM" />
+                <option value="ROLL" />
+                <option value="METER" />
+                <option value="LITER" />
+                <option value="KG" />
               </datalist>
-              <div className="flex flex-wrap gap-1 mt-1.5">
-                {['Baik', 'Rusak Ringan', 'Rusak Berat', 'Perlu Servis'].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setEditCondition(s)}
-                    className="px-1.5 py-0.5 rounded text-[10px] bg-[#FAF9F5] border border-[#EAE4D9] text-[#70685C] hover:text-[#B8860B]"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-medium text-[#231F1A] mb-1">
+              Kondisi Fisik Barang
+            </label>
+            <input
+              type="text"
+              list="admin-condition-suggestions"
+              value={editCondition}
+              onChange={(e) => setEditCondition(e.target.value)}
+              placeholder="Ketik kondisi atau pilih saran..."
+              className="w-full px-3 py-2 rounded-lg border border-[#EAE4D9] text-xs text-[#231F1A] focus:ring-1 focus:ring-[#B8860B]"
+            />
+            <datalist id="admin-condition-suggestions">
+              <option value="Baik" />
+              <option value="Rusak Ringan" />
+              <option value="Rusak Berat" />
+              <option value="Perlu Perbaikan" />
+              <option value="Baru" />
+              <option value="Bekas Normal" />
+              <option value="Lecet Pemakaian" />
+              <option value="Perlu Servis" />
+            </datalist>
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {['Baik', 'Rusak Ringan', 'Rusak Berat', 'Perlu Servis'].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setEditCondition(s)}
+                  className="px-1.5 py-0.5 rounded text-[10px] bg-[#FAF9F5] border border-[#EAE4D9] text-[#70685C] hover:text-[#B8860B]"
+                >
+                  {s}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -1279,5 +1327,20 @@ export default function AdminInventoryPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminInventoryPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="p-8 text-center text-xs text-[#70685C]">
+          <div className="w-6 h-6 border-2 border-[#B8860B] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          Memuat halaman inventaris...
+        </div>
+      }
+    >
+      <AdminInventoryContent />
+    </React.Suspense>
   );
 }

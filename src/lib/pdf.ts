@@ -86,7 +86,7 @@ export function generatePdfReport(
     item.name,
     item.category,
     item.location,
-    item.quantity.toString(),
+    item.unit ? `${item.quantity} ${item.unit}` : `${item.quantity} PCS`,
     item.condition,
     item.creatorName,
     item.createdAt,

@@ -7,6 +7,7 @@ export interface InventoryExportItem {
   category: string;
   location: string;
   quantity: number;
+  unit?: string;
   condition: string;
   creatorName: string;
   createdAt: string;
@@ -65,7 +66,7 @@ export async function generateExcelReport(
     'Nama Barang',
     'Kategori',
     'Tempat / Lokasi',
-    'Jumlah (Unit)',
+    'Jumlah',
     'Kondisi',
     'Ditambahkan Oleh',
     'Tanggal Input',
@@ -103,7 +104,7 @@ export async function generateExcelReport(
       item.name,
       item.category,
       item.location,
-      item.quantity,
+      item.unit ? `${item.quantity} ${item.unit}` : `${item.quantity} PCS`,
       item.condition,
       item.creatorName,
       item.createdAt,

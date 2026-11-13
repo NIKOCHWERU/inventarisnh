@@ -32,6 +32,7 @@ interface InventoryItem {
   categoryName: string;
   location: string;
   quantity: number;
+  unit?: string | null;
   condition: string;
   notes?: string | null;
   price?: number | null;
@@ -368,7 +369,7 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
                         {item.categoryName}
                       </span>
                       <span className="text-[9px] sm:text-[10px] font-bold text-[#7A5805] bg-[#F7F2E4] px-1.5 py-0.5 rounded border border-[#E5D7B7]">
-                        {item.quantity} Unit
+                        {item.quantity} <span className="uppercase">{item.unit || 'PCS'}</span>
                       </span>
                       {item.price !== undefined && item.price !== null && (
                         <span className="text-[9px] sm:text-[10px] font-bold text-[#2B6336] bg-[#EBF5ED] px-1.5 py-0.5 rounded border border-[#C2E2CA]">
@@ -497,7 +498,7 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
                     <span className="text-base sm:text-lg font-extrabold text-[#7A5805] leading-none block">
                       {item.quantity}
                     </span>
-                    <span className="text-[10px] text-[#70685C] font-medium">Unit</span>
+                    <span className="text-[10px] text-[#70685C] font-semibold uppercase">{item.unit || 'PCS'}</span>
                     {item.price !== undefined && item.price !== null && (
                       <span className="text-[10px] font-bold text-[#2B6336] block mt-0.5">
                         {formatRupiah(item.price)}
@@ -598,7 +599,7 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
                   <span className="text-xl sm:text-2xl font-extrabold text-[#7A5805]">
                     {detailItem.quantity}
                   </span>
-                  <span className="text-[10px] text-[#70685C] font-semibold">Unit</span>
+                  <span className="text-[10px] text-[#70685C] font-bold uppercase">{detailItem.unit || 'PCS'}</span>
                 </div>
               </div>
 

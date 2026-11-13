@@ -34,7 +34,7 @@ export function generateCsvReport(items: InventoryExportItem[]): string {
         item.name,
         item.category,
         item.location,
-        item.quantity,
+        item.unit ? `${item.quantity} ${item.unit}` : `${item.quantity} PCS`,
         item.condition,
         item.creatorName,
         item.createdAt,

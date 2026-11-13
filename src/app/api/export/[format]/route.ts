@@ -115,6 +115,7 @@ export async function GET(
         category: item.category.name,
         location: item.location,
         quantity: item.quantity,
+        unit: (item as any).unit || 'PCS',
         condition: item.condition,
         creatorName: item.creator.name,
         createdAt: item.created_at.toLocaleDateString('id-ID', {

@@ -201,95 +201,144 @@ export default function AdminDashboardPage() {
         <div className="space-y-6 animate-in fade-in duration-200">
           {/* Main KPI Statistics Grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-white rounded-xl border border-[#EAE4D9] p-4 shadow-2xs">
+            <Link
+              href="/admin/inventory"
+              className="bg-white rounded-xl border border-[#EAE4D9] p-4 shadow-2xs hover:border-[#B8860B] hover:shadow-md transition-all cursor-pointer group block"
+              title="Klik untuk melihat seluruh jenis barang inventaris"
+            >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-[#70685C]">Total Jenis Barang</span>
-                <div className="w-8 h-8 rounded-lg bg-[#F7F2E4] border border-[#E5D7B7] flex items-center justify-center text-[#7A5805]">
+                <span className="text-xs font-medium text-[#70685C] group-hover:text-[#B8860B] transition">Total Jenis Barang</span>
+                <div className="w-8 h-8 rounded-lg bg-[#F7F2E4] border border-[#E5D7B7] flex items-center justify-center text-[#7A5805] group-hover:bg-[#B8860B] group-hover:text-white transition">
                   <Boxes className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-2">
-                <span className="text-2xl font-bold text-[#231F1A]">{stats.totalTypes}</span>
-                <span className="text-xs text-[#70685C] ml-1">jenis aset</span>
+              <div className="mt-2 flex items-baseline justify-between">
+                <div>
+                  <span className="text-2xl font-bold text-[#231F1A]">{stats.totalTypes}</span>
+                  <span className="text-xs text-[#70685C] ml-1">jenis aset</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-[#C5A059] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
               </div>
-            </div>
+            </Link>
 
-            <div className="bg-white rounded-xl border border-[#EAE4D9] p-4 shadow-2xs">
+            <Link
+              href="/admin/inventory"
+              className="bg-white rounded-xl border border-[#EAE4D9] p-4 shadow-2xs hover:border-[#B8860B] hover:shadow-md transition-all cursor-pointer group block"
+              title="Klik untuk melihat seluruh unit fisik barang inventaris"
+            >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-[#70685C]">Total Unit Fisik</span>
-                <div className="w-8 h-8 rounded-lg bg-[#F7F2E4] border border-[#E5D7B7] flex items-center justify-center text-[#7A5805]">
+                <span className="text-xs font-medium text-[#70685C] group-hover:text-[#B8860B] transition">Total Unit Fisik</span>
+                <div className="w-8 h-8 rounded-lg bg-[#F7F2E4] border border-[#E5D7B7] flex items-center justify-center text-[#7A5805] group-hover:bg-[#B8860B] group-hover:text-white transition">
                   <TrendingUp className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-2">
-                <span className="text-2xl font-bold text-[#231F1A]">{stats.totalUnits}</span>
-                <span className="text-xs text-[#70685C] ml-1">unit total</span>
+              <div className="mt-2 flex items-baseline justify-between">
+                <div>
+                  <span className="text-2xl font-bold text-[#231F1A]">{stats.totalUnits}</span>
+                  <span className="text-xs text-[#70685C] ml-1">unit total</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-[#C5A059] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
               </div>
-            </div>
+            </Link>
 
-            <div className="bg-white rounded-xl border border-[#EAE4D9] p-4 shadow-2xs">
+            <Link
+              href="/admin/inventory"
+              className="bg-white rounded-xl border border-[#EAE4D9] p-4 shadow-2xs hover:border-[#B8860B] hover:shadow-md transition-all cursor-pointer group block"
+              title="Klik untuk melihat dan memfilter kategori aset"
+            >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-[#70685C]">Kategori Aset</span>
-                <div className="w-8 h-8 rounded-lg bg-[#F4F0E8] border border-[#EAE4D9] flex items-center justify-center text-[#70685C]">
+                <span className="text-xs font-medium text-[#70685C] group-hover:text-[#B8860B] transition">Kategori Aset</span>
+                <div className="w-8 h-8 rounded-lg bg-[#F4F0E8] border border-[#EAE4D9] flex items-center justify-center text-[#70685C] group-hover:bg-[#B8860B] group-hover:text-white transition">
                   <Layers className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-2">
-                <span className="text-2xl font-bold text-[#231F1A]">{stats.totalCategories}</span>
-                <span className="text-xs text-[#70685C] ml-1">kategori aktif</span>
+              <div className="mt-2 flex items-baseline justify-between">
+                <div>
+                  <span className="text-2xl font-bold text-[#231F1A]">{stats.totalCategories}</span>
+                  <span className="text-xs text-[#70685C] ml-1">kategori aktif</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-[#C5A059] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
               </div>
-            </div>
+            </Link>
 
-            <div className="bg-white rounded-xl border border-[#EAE4D9] p-4 shadow-2xs">
+            <Link
+              href="/admin/employees"
+              className="bg-white rounded-xl border border-[#EAE4D9] p-4 shadow-2xs hover:border-[#B8860B] hover:shadow-md transition-all cursor-pointer group block"
+              title="Klik untuk melihat karyawan penginput inventaris"
+            >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-[#70685C]">Karyawan Penginput</span>
-                <div className="w-8 h-8 rounded-lg bg-[#F7F2E4] border border-[#E5D7B7] flex items-center justify-center text-[#7A5805]">
+                <span className="text-xs font-medium text-[#70685C] group-hover:text-[#B8860B] transition">Karyawan Penginput</span>
+                <div className="w-8 h-8 rounded-lg bg-[#F7F2E4] border border-[#E5D7B7] flex items-center justify-center text-[#7A5805] group-hover:bg-[#B8860B] group-hover:text-white transition">
                   <Users className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-2">
-                <span className="text-2xl font-bold text-[#231F1A]">{stats.totalEmployees}</span>
-                <span className="text-xs text-[#70685C] ml-1">orang</span>
+              <div className="mt-2 flex items-baseline justify-between">
+                <div>
+                  <span className="text-2xl font-bold text-[#231F1A]">{stats.totalEmployees}</span>
+                  <span className="text-xs text-[#70685C] ml-1">orang</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-[#C5A059] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
               </div>
-            </div>
+            </Link>
           </div>
 
           {/* Condition Status Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <div className="bg-[#EBF5ED] rounded-xl border border-[#C2E2CA] p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-[#2B6336] shadow-2xs">
-                <CheckCircle className="w-5 h-5" />
+            <Link
+              href="/admin/inventory?condition=Baik"
+              className="bg-[#EBF5ED] rounded-xl border border-[#C2E2CA] p-4 flex items-center justify-between gap-3 hover:border-[#2B6336] hover:shadow-md transition-all cursor-pointer group block"
+              title="Klik untuk melihat daftar inventaris dengan Kondisi Baik"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-[#2B6336] shadow-2xs group-hover:scale-110 transition-transform">
+                  <CheckCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs text-[#2B6336] font-medium block">Kondisi Baik</span>
+                  <span className="text-xl font-bold text-[#2B6336]">{stats.baikCount}</span>
+                  <span className="text-[11px] text-[#2B6336] ml-1">barang</span>
+                </div>
               </div>
-              <div>
-                <span className="text-xs text-[#2B6336] font-medium block">Kondisi Baik</span>
-                <span className="text-xl font-bold text-[#2B6336]">{stats.baikCount}</span>
-                <span className="text-[11px] text-[#2B6336] ml-1">barang</span>
-              </div>
-            </div>
+              <ArrowRight className="w-4 h-4 text-[#2B6336] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+            </Link>
 
-            <div className="bg-[#FEF7E6] rounded-xl border border-[#FBE3B5] p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-[#A36B00] shadow-2xs">
-                <AlertTriangle className="w-5 h-5" />
+            <Link
+              href="/admin/inventory?condition=Rusak"
+              className="bg-[#FEF7E6] rounded-xl border border-[#FBE3B5] p-4 flex items-center justify-between gap-3 hover:border-[#A36B00] hover:shadow-md transition-all cursor-pointer group block"
+              title="Klik untuk melihat seluruh inventaris Rusak (Ringan & Berat)"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-[#A36B00] shadow-2xs group-hover:scale-110 transition-transform">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs text-[#A36B00] font-medium block">Kondisi Rusak</span>
+                  <span className="text-xl font-bold text-[#A36B00]">{stats.totalRusak}</span>
+                  <span className="text-[11px] text-[#A36B00] ml-1">
+                    ({stats.rusakRinganCount} ringan, {stats.rusakBeratCount} berat)
+                  </span>
+                </div>
               </div>
-              <div>
-                <span className="text-xs text-[#A36B00] font-medium block">Kondisi Rusak</span>
-                <span className="text-xl font-bold text-[#A36B00]">{stats.totalRusak}</span>
-                <span className="text-[11px] text-[#A36B00] ml-1">
-                  ({stats.rusakRinganCount} ringan, {stats.rusakBeratCount} berat)
-                </span>
-              </div>
-            </div>
+              <ArrowRight className="w-4 h-4 text-[#A36B00] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+            </Link>
 
-            <div className="bg-[#F2F5FD] rounded-xl border border-[#C7D7FB] p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-[#2B52BA] shadow-2xs">
-                <Wrench className="w-5 h-5" />
+            <Link
+              href="/admin/inventory?condition=Perlu Perbaikan"
+              className="bg-[#F2F5FD] rounded-xl border border-[#C7D7FB] p-4 flex items-center justify-between gap-3 hover:border-[#2B52BA] hover:shadow-md transition-all cursor-pointer group block"
+              title="Klik untuk melihat daftar inventaris yang Perlu Perbaikan"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-[#2B52BA] shadow-2xs group-hover:scale-110 transition-transform">
+                  <Wrench className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs text-[#2B52BA] font-medium block">Perlu Perbaikan</span>
+                  <span className="text-xl font-bold text-[#2B52BA]">{stats.perluPerbaikanCount}</span>
+                  <span className="text-[11px] text-[#2B52BA] ml-1">barang</span>
+                </div>
               </div>
-              <div>
-                <span className="text-xs text-[#2B52BA] font-medium block">Perlu Perbaikan</span>
-                <span className="text-xl font-bold text-[#2B52BA]">{stats.perluPerbaikanCount}</span>
-                <span className="text-[11px] text-[#2B52BA] ml-1">barang</span>
-              </div>
-            </div>
+              <ArrowRight className="w-4 h-4 text-[#2B52BA] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+            </Link>
           </div>
 
           {/* Charts Section */}
@@ -307,10 +356,16 @@ export default function AdminDashboardPage() {
                 {charts.byCategory.map((cat: any) => {
                   const maxCount = Math.max(...charts.byCategory.map((c: any) => c.count), 1);
                   const percentage = Math.round((cat.count / maxCount) * 100);
+                  const targetHref = cat.id ? `/admin/inventory?category_id=${cat.id}` : '/admin/inventory';
                   return (
-                    <div key={cat.name} className="space-y-1">
+                    <Link
+                      key={cat.name}
+                      href={targetHref}
+                      className="space-y-1 block p-1 -m-1 rounded-lg hover:bg-[#FAF9F5] transition group"
+                      title={`Klik untuk memfilter inventaris kategori: ${cat.name}`}
+                    >
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-[#231F1A]">{cat.name}</span>
+                        <span className="font-medium text-[#231F1A] group-hover:text-[#B8860B] transition">{cat.name}</span>
                         <span className="font-semibold text-[#70685C]">{cat.count} barang</span>
                       </div>
                       <div className="w-full h-2.5 bg-[#F4F0E8] rounded-full overflow-hidden">
@@ -319,7 +374,7 @@ export default function AdminDashboardPage() {
                           style={{ width: `${percentage}%` }}
                         />
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
@@ -339,9 +394,14 @@ export default function AdminDashboardPage() {
                   const totalItems = stats.totalTypes || 1;
                   const pct = Math.round((cond.count / totalItems) * 100);
                   return (
-                    <div key={cond.name} className="space-y-1">
+                    <Link
+                      key={cond.name}
+                      href={`/admin/inventory?condition=${encodeURIComponent(cond.name)}`}
+                      className="space-y-1 block p-1 -m-1 rounded-lg hover:bg-[#FAF9F5] transition group"
+                      title={`Klik untuk memfilter inventaris kondisi: ${cond.name}`}
+                    >
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-[#231F1A] flex items-center gap-1.5">
+                        <span className="font-medium text-[#231F1A] group-hover:text-[#B8860B] transition flex items-center gap-1.5">
                           <span
                             className="w-2.5 h-2.5 rounded-full inline-block"
                             style={{ backgroundColor: cond.color }}
@@ -358,7 +418,7 @@ export default function AdminDashboardPage() {
                           style={{ width: `${pct}%`, backgroundColor: cond.color }}
                         />
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
@@ -399,7 +459,7 @@ export default function AdminDashboardPage() {
                       <div className="min-w-0">
                         <span className="font-bold text-[#231F1A] block truncate">{item.name}</span>
                         <span className="text-[11px] text-[#70685C]">
-                          {item.category} • {item.location} ({item.quantity} unit)
+                          {item.category} • {item.location} ({item.quantity} {item.unit || 'PCS'})
                         </span>
                       </div>
                     </div>

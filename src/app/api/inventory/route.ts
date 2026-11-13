@@ -46,7 +46,11 @@ export async function GET(request: Request) {
     }
 
     if (condition && condition !== 'all') {
-      where.condition = condition;
+      if (condition === 'Rusak') {
+        where.condition = { in: ['Rusak Ringan', 'Rusak Berat', 'Rusak'] };
+      } else {
+        where.condition = condition;
+      }
     }
 
     if (location && location !== 'all') {

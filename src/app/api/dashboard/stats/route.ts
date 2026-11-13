@@ -106,6 +106,7 @@ export async function GET() {
 
     // Category chart data
     const categoryChart = categoriesWithCount.map((c) => ({
+      id: c.id,
       name: c.name,
       count: c._count.inventories,
     }));
@@ -169,6 +170,7 @@ export async function GET() {
         category: i.category.name,
         location: i.location,
         quantity: i.quantity,
+        unit: (i as any).unit || 'PCS',
         condition: i.condition,
         photoPath: i.photo_path,
         creatorName: i.creator.name,
