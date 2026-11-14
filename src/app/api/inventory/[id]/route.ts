@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
-import { saveUploadedFile, deleteUploadedFile } from '@/lib/upload';
+import { saveUploadedFile, deleteUploadedFile, saveMultipleUploadedFiles, parsePhotoPaths } from '@/lib/upload';
 import { logInventoryActivity } from '@/lib/audit';
 
 export async function GET(
@@ -46,6 +46,7 @@ export async function GET(
         notes: (item as any).notes || null,
         price: (item as any).price ?? null,
         photoPath: item.photo_path,
+        photoPaths: parsePhotoPaths(item),
         createdById: item.created_by,
         creatorName: item.creator.name,
         createdAt: item.created_at,
@@ -106,9 +107,7 @@ export async function PUT(
     const condition = formData.get('condition')?.toString().trim();
     const notesRaw = formData.get('notes');
     const priceRaw = formData.get('price');
-    const removePhoto = formData.get('remove_photo') === 'true';
     const unit = formData.get('unit')?.toString().trim();
-    const photoFile = formData.get('photo') as File | null;
 
     const updateData: any = {};
     if (name) updateData.name = name;
@@ -147,21 +146,65 @@ export async function PUT(
       updateData.condition = condition;
     }
 
-    // Photo handling
-    if (photoFile && photoFile.size > 0) {
-      const uploadResult = await saveUploadedFile(photoFile);
-      if (!uploadResult.success) {
-        return NextResponse.json({ error: uploadResult.error }, { status: 400 });
-      }
-      if (existing.photo_path) {
-        await deleteUploadedFile(existing.photo_path);
-      }
-      updateData.photo_path = uploadResult.filePath;
-    } else if (removePhoto) {
-      if (existing.photo_path) {
-        await deleteUploadedFile(existing.photo_path);
-      }
-      updateData.photo_path = null;
+    // Photos handling (supports up to 100 photos per item)
+    const existingPhotosInDb = parsePhotoPaths(existing as any);
+    const existingPhotosRaw = formData.get('existing_photos')?.toString();
+    const removePhoto = formData.get('remove_photo') === 'true';
+    const removeAllPhotos = formData.get('remove_all_photos') === 'true';
+
+    // Get newly uploaded photos
+    const newPhotoFiles = formData.getAll('photos') as File[];
+    const singlePhotoFile = formData.get('photo') as File | null;
+    const allNewFiles: File[] = [];
+    if (newPhotoFiles.length > 0) {
+      allNewFiles.push(...newPhotoFiles.filter((f) => f && f.size > 0));
+    } else if (singlePhotoFile && singlePhotoFile.size > 0) {
+      allNewFiles.push(singlePhotoFile);
+    }
+
+    // Determine kept photos from existing
+    let keptPhotos: string[] = [];
+    if (existingPhotosRaw !== undefined && existingPhotosRaw !== null) {
+      try {
+        const parsed = JSON.parse(existingPhotosRaw);
+        if (Array.isArray(parsed)) {
+          keptPhotos = parsed.filter((p: any) => typeof p === 'string' && existingPhotosInDb.includes(p));
+        }
+      } catch {}
+    } else if (!removePhoto && !removeAllPhotos) {
+      keptPhotos = [...existingPhotosInDb];
+    }
+
+    if (removeAllPhotos || (removePhoto && allNewFiles.length === 0 && !existingPhotosRaw)) {
+      keptPhotos = [];
+    }
+
+    // Delete removed photos from disk
+    const photosToDelete = existingPhotosInDb.filter((p) => !keptPhotos.includes(p));
+    for (const p of photosToDelete) {
+      await deleteUploadedFile(p);
+    }
+
+    // Check max 100 limit
+    if (keptPhotos.length + allNewFiles.length > 100) {
+      return NextResponse.json(
+        { error: 'Maksimal 100 foto yang diperbolehkan per barang.' },
+        { status: 400 }
+      );
+    }
+
+    // Save newly uploaded files
+    let newlySavedPaths: string[] = [];
+    if (allNewFiles.length > 0) {
+      const uploadRes = await saveMultipleUploadedFiles(allNewFiles, '', 100 - keptPhotos.length);
+      newlySavedPaths = uploadRes.filePaths;
+    }
+
+    // If either existing photos changed or new photos uploaded or removed
+    if (existingPhotosRaw !== undefined || allNewFiles.length > 0 || removePhoto || removeAllPhotos) {
+      const finalPhotos = [...keptPhotos, ...newlySavedPaths];
+      updateData.photo_path = finalPhotos[0] || null;
+      updateData.photo_paths = finalPhotos.length > 0 ? JSON.stringify(finalPhotos) : null;
     }
 
     const updated = await prisma.inventory.update({
@@ -187,6 +230,7 @@ export async function PUT(
         notes: (existing as any).notes || null,
         price: (existing as any).price ?? null,
         photo_path: existing.photo_path,
+        photo_paths: (existing as any).photo_paths || null,
       },
       newData: {
         name: updated.name,
@@ -197,13 +241,18 @@ export async function PUT(
         notes: (updated as any).notes || null,
         price: (updated as any).price ?? null,
         photo_path: updated.photo_path,
+        photo_paths: (updated as any).photo_paths || null,
       },
     });
 
     return NextResponse.json({
       success: true,
       message: 'Data inventaris berhasil diperbarui.',
-      inventory: updated,
+      inventory: {
+        ...updated,
+        photoPath: updated.photo_path,
+        photoPaths: parsePhotoPaths(updated as any),
+      },
     });
   } catch (error: any) {
     console.error('Update inventory error:', error);
@@ -242,9 +291,10 @@ export async function DELETE(
       );
     }
 
-    // Delete photo if exists
-    if (existing.photo_path) {
-      await deleteUploadedFile(existing.photo_path);
+    // Delete all photos from disk
+    const allPhotosToDelete = parsePhotoPaths(existing as any);
+    for (const p of allPhotosToDelete) {
+      await deleteUploadedFile(p);
     }
 
     await prisma.inventory.delete({

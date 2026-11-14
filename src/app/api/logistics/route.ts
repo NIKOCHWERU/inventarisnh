@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
-import { writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import path from 'path';
+import { saveMultipleUploadedFiles, parsePhotoPaths } from '@/lib/upload';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,8 +36,13 @@ export async function GET(request: Request) {
       prisma.logistic.count({ where }),
     ]);
 
+    const mappedItems = items.map((item) => ({
+      ...item,
+      photoPaths: parsePhotoPaths(item),
+    }));
+
     return NextResponse.json({
-      items,
+      items: mappedItems,
       pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
   } catch (error: any) {
@@ -60,6 +63,7 @@ export async function POST(request: Request) {
     let notes: string | null = null;
     let price: number | null = null;
     let photoPath: string | null = null;
+    let photoPaths: string[] = [];
 
     const contentType = request.headers.get('content-type') || '';
 
@@ -78,15 +82,23 @@ export async function POST(request: Request) {
         if (!isNaN(p)) price = p;
       }
 
-      const photoFile = formData.get('photo') as File | null;
-      if (photoFile && photoFile.size > 0) {
-        const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'logistics');
-        if (!existsSync(uploadsDir)) await mkdir(uploadsDir, { recursive: true });
-        const ext = photoFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-        const filename = `logistic-${Date.now()}.${ext}`;
-        const buffer = Buffer.from(await photoFile.arrayBuffer());
-        await writeFile(path.join(uploadsDir, filename), buffer);
-        photoPath = `/uploads/logistics/${filename}`;
+      const files = formData.getAll('photos') as File[];
+      const singleFile = formData.get('photo') as File | null;
+      const filesToSave: File[] = [];
+      if (files.length > 0) {
+        filesToSave.push(...files.filter((f) => f && f.size > 0));
+      } else if (singleFile && singleFile.size > 0) {
+        filesToSave.push(singleFile);
+      }
+
+      if (filesToSave.length > 100) {
+        return NextResponse.json({ error: 'Maksimal 100 foto per barang logistik.' }, { status: 400 });
+      }
+
+      if (filesToSave.length > 0) {
+        const uploadResult = await saveMultipleUploadedFiles(filesToSave, 'logistics', 100);
+        photoPaths = uploadResult.filePaths;
+        photoPath = photoPaths[0] || null;
       }
     } else {
       const body = await request.json();
@@ -114,6 +126,7 @@ export async function POST(request: Request) {
         min_stock: isNaN(min_stock) ? 5 : min_stock,
         location, notes, price,
         photo_path: photoPath,
+        photo_paths: photoPaths.length > 0 ? JSON.stringify(photoPaths) : null,
         created_by: user.id,
       },
       include: { creator: { select: { id: true, name: true } } },

@@ -20,11 +20,14 @@ import {
   AlertCircle,
   X,
   History,
+  Camera,
+  Star,
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { ConditionBadge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { PhotoGalleryViewer } from '@/components/ui/PhotoGalleryViewer';
 import { formatRupiah } from '@/lib/format';
 import { formatPhotoUrl } from '@/lib/base-path';
 import { compressImage } from '@/lib/image-compress';
@@ -77,9 +80,11 @@ function AdminInventoryContent() {
   const [editCondition, setEditCondition] = useState('Baik');
   const [editNotes, setEditNotes] = useState('');
   const [editPrice, setEditPrice] = useState('');
-  const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null);
-  const [editPhotoPreview, setEditPhotoPreview] = useState<string | null>(null);
-  const [editRemovePhoto, setEditRemovePhoto] = useState(false);
+  const [editExistingPhotos, setEditExistingPhotos] = useState<string[]>([]);
+  const [editNewPhotoFiles, setEditNewPhotoFiles] = useState<File[]>([]);
+  const [editNewPhotoPreviews, setEditNewPhotoPreviews] = useState<string[]>([]);
+  const [editCompressProgress, setEditCompressProgress] = useState<string | null>(null);
+  const [isEditCompressing, setIsEditCompressing] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -207,9 +212,14 @@ function AdminInventoryContent() {
         ? Math.round(item.price).toLocaleString('id-ID')
         : ''
     );
-    setEditPhotoFile(null);
-    setEditPhotoPreview(item.photoPath || null);
-    setEditRemovePhoto(false);
+    const existing = item.photoPaths && item.photoPaths.length > 0
+      ? item.photoPaths
+      : (item.photoPath ? [item.photoPath] : []);
+    setEditExistingPhotos(existing);
+    setEditNewPhotoFiles([]);
+    setEditNewPhotoPreviews([]);
+    setEditCompressProgress(null);
+    setIsEditCompressing(false);
     setEditError(null);
     setIsEditOpen(true);
   };
@@ -230,10 +240,12 @@ function AdminInventoryContent() {
       formData.append('notes', editNotes.trim());
       const rawPrice = editPrice.replace(/[^0-9]/g, '');
       formData.append('price', rawPrice || '');
-      if (editRemovePhoto) {
+
+      formData.append('existing_photos', JSON.stringify(editExistingPhotos));
+      editNewPhotoFiles.forEach((file) => formData.append('photos', file));
+      if (editExistingPhotos.length === 0 && editNewPhotoFiles.length === 0) {
+        formData.append('remove_all_photos', 'true');
         formData.append('remove_photo', 'true');
-      } else if (editPhotoFile) {
-        formData.append('photo', editPhotoFile);
       }
 
       const res = await fetch(`/api/inventory/${editingItem.id}`, {
@@ -616,14 +628,20 @@ function AdminInventoryContent() {
                       {item.photoPath ? (
                         <button
                           type="button"
-                          onClick={() => setPreviewPhoto(item.photoPath)}
-                          className="w-10 h-10 rounded-md overflow-hidden border border-[#EAE4D9] bg-[#FAF9F5] inline-flex items-center justify-center hover:opacity-80"
+                          onClick={() => openDetail(item)}
+                          className="relative w-10 h-10 rounded-md overflow-hidden border border-[#EAE4D9] bg-[#FAF9F5] inline-flex items-center justify-center hover:opacity-80 shadow-2xs group/thumb"
+                          title={`${item.photoPaths?.length || 1} Foto - Klik untuk melihat galeri`}
                         >
                           <img
                             src={formatPhotoUrl(item.photoPath)}
                             alt={item.name}
                             className="w-full h-full object-cover"
                           />
+                          {item.photoPaths && item.photoPaths.length > 1 && (
+                            <span className="absolute bottom-0 right-0 bg-black/75 text-white text-[8px] font-bold px-1 rounded-tl">
+                              {item.photoPaths.length}
+                            </span>
+                          )}
                         </button>
                       ) : (
                         <span className="text-[#C5A059] text-xs">-</span>
@@ -745,17 +763,18 @@ function AdminInventoryContent() {
         {detailItem && (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-4 items-start">
-              {detailItem.photoPath ? (
-                <img
-                  src={formatPhotoUrl(detailItem.photoPath)}
-                  alt={detailItem.name}
-                  className="w-full sm:w-40 h-40 object-cover rounded-lg border border-[#EAE4D9]"
-                />
-              ) : (
-                <div className="w-full sm:w-40 h-40 rounded-lg border border-[#EAE4D9] bg-[#FAF9F5] flex items-center justify-center text-[#C5A059]">
-                  <ImageIcon className="w-8 h-8 opacity-60" />
-                </div>
-              )}
+              <div className="w-full sm:w-56 flex-shrink-0">
+                {(() => {
+                  const photos = detailItem.photoPaths && detailItem.photoPaths.length > 0
+                    ? detailItem.photoPaths
+                    : (detailItem.photoPath ? [detailItem.photoPath] : []);
+                  return (
+                    <div className="rounded-xl overflow-hidden border border-[#EAE4D9] bg-[#FAF9F5]">
+                      <PhotoGalleryViewer photos={photos} itemName={detailItem.name} />
+                    </div>
+                  );
+                })()}
+              </div>
 
               <div className="flex-1 space-y-2 text-xs">
                 <div>
@@ -1052,48 +1071,206 @@ function AdminInventoryContent() {
             </div>
           </div>
 
-          {/* Photo handling */}
-          <div>
-            <label className="block font-medium text-[#231F1A] mb-1">
-              Foto Barang
-            </label>
-            {editPhotoPreview && !editRemovePhoto ? (
-              <div className="flex items-center gap-3 p-2 border border-[#EAE4D9] rounded-lg bg-[#FAF9F5]">
-                <img
-                  src={formatPhotoUrl(editPhotoPreview)}
-                  alt="Preview"
-                  className="w-14 h-14 object-cover rounded"
+          {/* Photo handling (Maksimal 100 Foto) */}
+          <div className="pt-1 border-t border-[#EAE4D9]">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block font-medium text-[#231F1A]">
+                Foto Barang <span className="text-[10px] text-[#70685C] font-normal">(Maks. 100 Foto)</span>
+              </label>
+              {(editExistingPhotos.length + editNewPhotoFiles.length) > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-[#B8860B] bg-[#FAF6EC] px-2 py-0.5 rounded-full border border-[#B8860B]/30">
+                    📸 {editExistingPhotos.length + editNewPhotoFiles.length} / 100 Foto
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditExistingPhotos([]);
+                      setEditNewPhotoFiles([]);
+                      setEditNewPhotoPreviews([]);
+                    }}
+                    className="text-[10px] text-red-600 hover:text-red-700 hover:underline font-medium"
+                  >
+                    Hapus Semua
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {isEditCompressing ? (
+              <div className="p-4 rounded-xl border border-dashed border-[#B8860B] bg-[#FAF6EC] flex flex-col items-center justify-center gap-1.5 text-center animate-pulse">
+                <div className="w-5 h-5 border-2 border-[#B8860B] border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs font-semibold text-[#7A5805]">
+                  {editCompressProgress || 'Mengoptimalkan foto...'}
+                </span>
+              </div>
+            ) : (editExistingPhotos.length + editNewPhotoFiles.length) === 0 ? (
+              <div className="p-4 rounded-xl border border-dashed border-[#EAE4D9] bg-[#FAF9F5] text-center">
+                <input
+                  type="file"
+                  id="admin-inventory-photo-input"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length === 0) return;
+                    if (files.length > 100) {
+                      setEditError('Maksimal 100 foto yang diperbolehkan.');
+                      return;
+                    }
+                    setIsEditCompressing(true);
+                    const compressed: File[] = [];
+                    const previews: string[] = [];
+                    for (let i = 0; i < files.length; i++) {
+                      setEditCompressProgress(`Mengoptimalkan foto ${i + 1}/${files.length}...`);
+                      try {
+                        const res = await compressImage(files[i], { maxWidth: 1280, maxHeight: 1280, quality: 0.78 });
+                        compressed.push(res.file);
+                        previews.push(res.previewUrl);
+                      } catch {
+                        compressed.push(files[i]);
+                        previews.push(URL.createObjectURL(files[i]));
+                      }
+                    }
+                    setEditNewPhotoFiles(compressed);
+                    setEditNewPhotoPreviews(previews);
+                    setIsEditCompressing(false);
+                    setEditCompressProgress(null);
+                  }}
+                  className="hidden"
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setEditRemovePhoto(true)}
-                  className="text-red-600 hover:text-red-700 text-xs"
+                <label
+                  htmlFor="admin-inventory-photo-input"
+                  className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-[#EAE4D9] text-xs font-semibold text-[#70685C] hover:border-[#B8860B] hover:text-[#B8860B] shadow-2xs transition"
                 >
-                  Hapus Foto Ini
-                </Button>
+                  <ImageIcon className="w-4 h-4 text-[#B8860B]" />
+                  Pilih Foto dari Komputer (Bisa Banyak)
+                </label>
               </div>
             ) : (
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    try {
-                      const res = await compressImage(file, { maxWidth: 1280, maxHeight: 1280, quality: 0.78 });
-                      setEditPhotoFile(res.file);
-                      setEditPhotoPreview(res.previewUrl);
-                    } catch {
-                      setEditPhotoFile(file);
-                      setEditPhotoPreview(URL.createObjectURL(file));
-                    }
-                    setEditRemovePhoto(false);
-                  }
-                }}
-                className="w-full text-xs text-[#70685C]"
-              />
+              <div className="space-y-2">
+                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-52 overflow-y-auto p-1.5 border border-[#EAE4D9] rounded-xl bg-[#FAF9F5]">
+                  {/* Existing photos */}
+                  {editExistingPhotos.map((src, idx) => (
+                    <div
+                      key={`exist-${idx}`}
+                      className={`relative group rounded-lg overflow-hidden border ${
+                        idx === 0 ? 'border-[#B8860B] ring-2 ring-[#B8860B]/40' : 'border-[#EAE4D9]'
+                      } bg-black/5 aspect-square flex items-center justify-center shadow-xs`}
+                    >
+                      <img
+                        src={formatPhotoUrl(src)}
+                        alt={`Foto ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      {idx === 0 ? (
+                        <span className="absolute top-1 left-1 bg-[#B8860B] text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5">
+                          <Star className="w-2.5 h-2.5 fill-white" /> Utama
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditExistingPhotos((prev) => {
+                              const copy = [...prev];
+                              const [target] = copy.splice(idx, 1);
+                              return [target, ...copy];
+                            });
+                          }}
+                          className="absolute top-1 left-1 bg-black/60 hover:bg-[#B8860B] text-white text-[8px] font-medium px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition"
+                          title="Jadikan Foto Utama"
+                        >
+                          Utamakan
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setEditExistingPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                        className="absolute top-1 right-1 p-1 rounded-full bg-red-600 text-white shadow hover:bg-red-700 transition"
+                        title="Hapus Foto"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* New photo previews */}
+                  {editNewPhotoPreviews.map((src, idx) => (
+                    <div
+                      key={`new-${idx}`}
+                      className="relative group rounded-lg overflow-hidden border border-emerald-400 bg-emerald-50/20 aspect-square flex items-center justify-center shadow-xs"
+                    >
+                      <img
+                        src={src}
+                        alt={`Foto Baru ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      <span className="absolute top-1 left-1 bg-emerald-600 text-white text-[8px] font-bold px-1 py-0.5 rounded shadow-xs">
+                        +Baru
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditNewPhotoFiles((prev) => prev.filter((_, i) => i !== idx));
+                          setEditNewPhotoPreviews((prev) => prev.filter((_, i) => i !== idx));
+                        }}
+                        className="absolute top-1 right-1 p-1 rounded-full bg-red-600 text-white shadow hover:bg-red-700 transition"
+                        title="Batal Foto Baru"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add more button tile */}
+                  {(editExistingPhotos.length + editNewPhotoFiles.length) < 100 && (
+                    <div>
+                      <input
+                        type="file"
+                        id="admin-inventory-add-more-input"
+                        multiple
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length === 0) return;
+                          const currentTotal = editExistingPhotos.length + editNewPhotoFiles.length;
+                          if (currentTotal + files.length > 100) {
+                            setEditError(`Maksimal 100 foto. Saat ini ${currentTotal} foto, dipilih ${files.length} foto.`);
+                            return;
+                          }
+                          setIsEditCompressing(true);
+                          const compressed: File[] = [];
+                          const previews: string[] = [];
+                          for (let i = 0; i < files.length; i++) {
+                            setEditCompressProgress(`Mengoptimalkan foto ${i + 1}/${files.length}...`);
+                            try {
+                              const res = await compressImage(files[i], { maxWidth: 1280, maxHeight: 1280, quality: 0.78 });
+                              compressed.push(res.file);
+                              previews.push(res.previewUrl);
+                            } catch {
+                              compressed.push(files[i]);
+                              previews.push(URL.createObjectURL(files[i]));
+                            }
+                          }
+                          setEditNewPhotoFiles((prev) => [...prev, ...compressed]);
+                          setEditNewPhotoPreviews((prev) => [...prev, ...previews]);
+                          setIsEditCompressing(false);
+                          setEditCompressProgress(null);
+                        }}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="admin-inventory-add-more-input"
+                        className="aspect-square rounded-lg border-2 border-dashed border-[#B8860B]/50 hover:border-[#B8860B] bg-white hover:bg-[#FAF6EC] flex flex-col items-center justify-center gap-0.5 text-[#7A5805] cursor-pointer transition p-1"
+                        title="Tambah Foto Lagi"
+                      >
+                        <Plus className="w-4 h-4 text-[#B8860B]" />
+                        <span className="text-[9px] font-bold">+ Foto</span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 

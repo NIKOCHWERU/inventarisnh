@@ -12,6 +12,7 @@ import {
   MapPin,
   Check,
   Sparkles,
+  Star,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Combobox } from '@/components/ui/Combobox';
@@ -53,6 +54,7 @@ export interface InventoryEditItem {
   notes?: string | null;
   price?: number | null;
   photoPath: string | null;
+  photoPaths?: string[];
   createdById?: string;
   creatorName?: string;
 }
@@ -101,13 +103,17 @@ export function InventoryEditModal({
       : ''
   );
 
-  // Photo
-  const [currentPhotoPath, setCurrentPhotoPath] = useState<string | null>(item.photoPath || null);
-  const [newPhotoFile, setNewPhotoFile] = useState<File | null>(null);
-  const [newPhotoPreview, setNewPhotoPreview] = useState<string | null>(null);
-  const [removePhoto, setRemovePhoto] = useState(false);
+  // Photos State (Up to 100 photos)
+  const MAX_PHOTOS = 100;
+  const initialPhotos = item.photoPaths && item.photoPaths.length > 0
+    ? item.photoPaths
+    : (item.photoPath ? [item.photoPath] : []);
+  const [existingPhotos, setExistingPhotos] = useState<string[]>(initialPhotos);
+  const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([]);
+  const [newPhotoPreviews, setNewPhotoPreviews] = useState<string[]>([]);
   const [photoInfo, setPhotoInfo] = useState<string | null>(null);
   const [isCompressingPhoto, setIsCompressingPhoto] = useState(false);
+  const [compressProgress, setCompressProgress] = useState<string | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,26 +129,84 @@ export function InventoryEditModal({
     };
   }, []);
 
-  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const totalPhotoCount = existingPhotos.length + newPhotoFiles.length;
+
+  const handlePhotosSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFiles = Array.from(e.target.files || []);
+    if (rawFiles.length === 0) return;
+
+    if (totalPhotoCount + rawFiles.length > MAX_PHOTOS) {
+      setError(
+        `Maksimal ${MAX_PHOTOS} foto per barang. Saat ini sudah ada ${totalPhotoCount} foto, dan Anda memilih ${rawFiles.length} foto lagi.`
+      );
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
+      return;
+    }
+
     setError(null);
     setIsCompressingPhoto(true);
-    try {
-      const res = await compressImage(file, { maxWidth: 1280, maxHeight: 1280, quality: 0.78 });
-      setNewPhotoFile(res.file);
-      setNewPhotoPreview(res.previewUrl);
-      setRemovePhoto(false);
-      const origMB = (res.originalSize / (1024 * 1024)).toFixed(1);
-      const compKB = Math.round(res.compressedSize / 1024);
-      setPhotoInfo(`⚡ Dioptimalkan: ${origMB}MB ➔ ${compKB}KB`);
-    } catch {
-      setNewPhotoFile(file);
-      setNewPhotoPreview(URL.createObjectURL(file));
-      setRemovePhoto(false);
-    } finally {
-      setIsCompressingPhoto(false);
+
+    const newlyCompressedFiles: File[] = [];
+    const newlyPreviewUrls: string[] = [];
+    let totalOrigBytes = 0;
+    let totalCompBytes = 0;
+
+    for (let i = 0; i < rawFiles.length; i++) {
+      const f = rawFiles[i];
+      setCompressProgress(`Mengoptimalkan foto ${i + 1} dari ${rawFiles.length}...`);
+      try {
+        const res = await compressImage(f, { maxWidth: 1280, maxHeight: 1280, quality: 0.78 });
+        newlyCompressedFiles.push(res.file);
+        newlyPreviewUrls.push(res.previewUrl);
+        totalOrigBytes += res.originalSize;
+        totalCompBytes += res.compressedSize;
+      } catch {
+        newlyCompressedFiles.push(f);
+        newlyPreviewUrls.push(URL.createObjectURL(f));
+        totalOrigBytes += f.size;
+        totalCompBytes += f.size;
+      }
     }
+
+    setNewPhotoFiles((prev) => [...prev, ...newlyCompressedFiles]);
+    setNewPhotoPreviews((prev) => [...prev, ...newlyPreviewUrls]);
+    setIsCompressingPhoto(false);
+    setCompressProgress(null);
+
+    const origMB = (totalOrigBytes / (1024 * 1024)).toFixed(1);
+    const compMB = (totalCompBytes / (1024 * 1024)).toFixed(1);
+    setPhotoInfo(`⚡ ${rawFiles.length} foto dioptimalkan: ${origMB}MB ➔ ${compMB}MB`);
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
+  };
+
+  const handleRemoveExistingPhoto = (index: number) => {
+    setExistingPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSetCoverExistingPhoto = (index: number) => {
+    if (index === 0) return;
+    setExistingPhotos((prev) => {
+      const copy = [...prev];
+      const [target] = copy.splice(index, 1);
+      return [target, ...copy];
+    });
+  };
+
+  const handleRemoveNewPhoto = (index: number) => {
+    setNewPhotoFiles((prev) => prev.filter((_, i) => i !== index));
+    setNewPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleClearAllPhotos = () => {
+    setExistingPhotos([]);
+    setNewPhotoFiles([]);
+    setNewPhotoPreviews([]);
+    setPhotoInfo(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
   const handleAddLocation = (val: string) => {
@@ -226,11 +290,16 @@ export function InventoryEditModal({
       const rawPrice = price.replace(/[^0-9]/g, '');
       formData.append('price', rawPrice || '');
 
-      if (removePhoto && !newPhotoFile) {
-        formData.append('remove_photo', 'true');
+      formData.append('existing_photos', JSON.stringify(existingPhotos));
+      newPhotoFiles.forEach((file) => {
+        formData.append('photos', file);
+      });
+      if (newPhotoFiles[0]) {
+        formData.append('photo', newPhotoFiles[0]);
       }
-      if (newPhotoFile) {
-        formData.append('photo', newPhotoFile);
+      if (existingPhotos.length === 0 && newPhotoFiles.length === 0) {
+        formData.append('remove_all_photos', 'true');
+        formData.append('remove_photo', 'true');
       }
 
       const res = await portalFetch(`/api/inventory/${item.id}`, {
@@ -241,6 +310,13 @@ export function InventoryEditModal({
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Gagal menyimpan perubahan.');
       }
+
+      const updatedPhotoPaths = data.inventory?.photoPaths ?? (
+        existingPhotos.length > 0 ? existingPhotos : []
+      );
+      const updatedPhotoPath = data.inventory?.photo_path ?? (
+        updatedPhotoPaths[0] ?? null
+      );
 
       onUpdated({
         ...item,
@@ -253,7 +329,8 @@ export function InventoryEditModal({
         condition: condition.trim(),
         notes: notes.trim() || null,
         price: rawPrice ? parseFloat(rawPrice) : null,
-        photoPath: data.inventory?.photo_path ?? currentPhotoPath,
+        photoPath: updatedPhotoPath,
+        photoPaths: updatedPhotoPaths,
       });
 
       onClose();
@@ -568,19 +645,36 @@ export function InventoryEditModal({
             </div>
           </div>
 
-          {/* Foto Barang */}
+          {/* Foto Barang (Maksimal 100 Foto) */}
           <div className="pt-1 border-t border-[#EAE4D9]">
-            <label className="block text-xs font-semibold text-[#231F1A] mb-1.5">
-              Foto Barang
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-[#231F1A]">
+                Foto Barang <span className="text-[10px] text-[#70685C] font-normal">(Maks. {MAX_PHOTOS} Foto)</span>
+              </label>
+              {totalPhotoCount > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-[#B8860B] bg-[#FAF6EC] px-2 py-0.5 rounded-full border border-[#B8860B]/30">
+                    📸 {totalPhotoCount} / {MAX_PHOTOS} Foto
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleClearAllPhotos}
+                    className="text-[10px] text-red-600 hover:text-red-700 hover:underline font-medium"
+                  >
+                    Hapus Semua
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Input file & kamera tersembunyi */}
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              multiple
+              accept="image/jpeg,image/png,image/webp"
               className="hidden"
-              onChange={handlePhotoSelect}
+              onChange={handlePhotosSelect}
             />
             <input
               ref={cameraInputRef}
@@ -588,74 +682,17 @@ export function InventoryEditModal({
               accept="image/*"
               capture="environment"
               className="hidden"
-              onChange={handlePhotoSelect}
+              onChange={handlePhotosSelect}
             />
 
-            {/* Preview foto baru atau foto lama */}
-            {newPhotoPreview ? (
-              <div className="relative rounded-xl overflow-hidden border border-[#B8860B] bg-[#FAF9F5] p-2 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={newPhotoPreview}
-                    alt="Foto Baru"
-                    className="w-14 h-14 object-cover rounded-lg border border-[#EAE4D9]"
-                  />
-                  <div>
-                    <span className="text-[11px] font-bold text-[#2B6336] block">
-                      ✓ Foto Baru Dipilih
-                    </span>
-                    {photoInfo && <span className="text-[10px] text-[#70685C]">{photoInfo}</span>}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNewPhotoFile(null);
-                    setNewPhotoPreview(null);
-                    setPhotoInfo(null);
-                  }}
-                  className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition"
-                  title="Batalkan foto baru"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+            {isCompressingPhoto ? (
+              <div className="p-4 rounded-xl border border-dashed border-[#B8860B] bg-[#FAF6EC] flex flex-col items-center justify-center gap-1.5 text-center animate-pulse">
+                <div className="w-5 h-5 border-2 border-[#B8860B] border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs font-semibold text-[#7A5805]">
+                  {compressProgress || 'Mengoptimalkan resolusi foto agar ringan...'}
+                </span>
               </div>
-            ) : currentPhotoPath && !removePhoto ? (
-              <div className="relative rounded-xl overflow-hidden border border-[#EAE4D9] bg-[#FAF9F5] p-2 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={formatPhotoUrl(currentPhotoPath)}
-                    alt="Foto Saat Ini"
-                    className="w-14 h-14 object-cover rounded-lg border border-[#EAE4D9]"
-                  />
-                  <div>
-                    <span className="text-[11px] font-medium text-[#231F1A] block">
-                      Foto Tersimpan
-                    </span>
-                    <span className="text-[10px] text-[#70685C]">
-                      Klik tombol untuk mengganti atau menghapus
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => cameraInputRef.current?.click()}
-                    className="px-2 py-1 rounded-lg bg-white border border-[#EAE4D9] text-[10px] font-semibold text-[#70685C] hover:border-[#B8860B]"
-                  >
-                    Ganti
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRemovePhoto(true)}
-                    className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100"
-                    title="Hapus foto"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ) : (
+            ) : totalPhotoCount === 0 ? (
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -671,8 +708,119 @@ export function InventoryEditModal({
                   className="flex-1 py-2.5 px-3 rounded-xl border border-[#EAE4D9] bg-white hover:bg-[#FAF9F5] text-[#70685C] font-semibold text-xs flex items-center justify-center gap-1.5 transition"
                 >
                   <ImageIcon className="w-4 h-4 text-[#70685C]" />
-                  Pilih dari Galeri
+                  Pilih Galeri (Multi-Foto)
                 </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-56 overflow-y-auto p-1.5 border border-[#EAE4D9] rounded-xl bg-[#FAF9F5]">
+                  {/* Existing Photos */}
+                  {existingPhotos.map((src, idx) => (
+                    <div
+                      key={`exist-${idx}`}
+                      className={`relative group rounded-lg overflow-hidden border ${
+                        idx === 0 ? 'border-[#B8860B] ring-2 ring-[#B8860B]/40' : 'border-[#EAE4D9]'
+                      } bg-black/5 aspect-square flex items-center justify-center shadow-xs`}
+                    >
+                      <img
+                        src={formatPhotoUrl(src)}
+                        alt={`Foto ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+
+                      {idx === 0 ? (
+                        <span className="absolute top-1 left-1 bg-[#B8860B] text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5">
+                          <Star className="w-2.5 h-2.5 fill-white" /> Utama
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleSetCoverExistingPhoto(idx)}
+                          className="absolute top-1 left-1 bg-black/60 hover:bg-[#B8860B] text-white text-[8px] font-medium px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition"
+                          title="Jadikan Foto Utama"
+                        >
+                          Utamakan
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveExistingPhoto(idx)}
+                        className="absolute top-1 right-1 p-1 rounded-full bg-red-600 text-white shadow hover:bg-red-700 transition"
+                        title="Hapus Foto"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Newly selected photos */}
+                  {newPhotoPreviews.map((src, idx) => (
+                    <div
+                      key={`new-${idx}`}
+                      className="relative group rounded-lg overflow-hidden border border-emerald-400 bg-emerald-50/20 aspect-square flex items-center justify-center shadow-xs"
+                    >
+                      <img
+                        src={src}
+                        alt={`Foto Baru ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      <span className="absolute top-1 left-1 bg-emerald-600 text-white text-[8px] font-bold px-1 py-0.5 rounded shadow-xs">
+                        +Baru
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveNewPhoto(idx)}
+                        className="absolute top-1 right-1 p-1 rounded-full bg-red-600 text-white shadow hover:bg-red-700 transition"
+                        title="Batal Foto Baru"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add more button tile */}
+                  {totalPhotoCount < MAX_PHOTOS && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="aspect-square rounded-lg border-2 border-dashed border-[#B8860B]/50 hover:border-[#B8860B] bg-white hover:bg-[#FAF6EC] flex flex-col items-center justify-center gap-0.5 text-[#7A5805] transition p-1"
+                      title="Tambah Foto Lagi"
+                    >
+                      <Plus className="w-4 h-4 text-[#B8860B]" />
+                      <span className="text-[9px] font-bold">Tambah</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Additional upload buttons */}
+                <div className="flex items-center justify-between gap-2 pt-0.5">
+                  <div className="flex items-center gap-1.5">
+                    {totalPhotoCount < MAX_PHOTOS && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => cameraInputRef.current?.click()}
+                          className="px-2 py-1 rounded-lg border border-[#B8860B]/40 bg-[#FAF6EC] text-[#7A5805] hover:bg-[#F7F2E4] text-[11px] font-semibold flex items-center gap-1 transition"
+                        >
+                          <Camera className="w-3 h-3" />
+                          + Kamera
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="px-2 py-1 rounded-lg border border-[#EAE4D9] bg-white text-[#574F44] hover:bg-[#FAF9F5] text-[11px] font-medium flex items-center gap-1 transition"
+                        >
+                          <ImageIcon className="w-3 h-3" />
+                          + Galeri
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {photoInfo && (
+                    <span className="text-[10px] text-emerald-700 font-medium">{photoInfo}</span>
+                  )}
+                </div>
               </div>
             )}
           </div>

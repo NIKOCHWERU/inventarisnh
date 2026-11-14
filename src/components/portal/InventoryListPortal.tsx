@@ -17,8 +17,10 @@ import {
   X,
   Package,
   Pencil,
+  Camera,
 } from 'lucide-react';
 import { InventoryEditModal } from './InventoryEditModal';
+import { PhotoGalleryViewer } from '@/components/ui/PhotoGalleryViewer';
 import { Button } from '@/components/ui/Button';
 import { formatRupiah } from '@/lib/format';
 import { portalFetch } from '@/lib/api-client';
@@ -37,6 +39,7 @@ interface InventoryItem {
   notes?: string | null;
   price?: number | null;
   photoPath: string | null;
+  photoPaths?: string[];
   createdById: string;
   creatorName: string;
   createdAt: string;
@@ -348,6 +351,14 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
                     </div>
                   )}
 
+                  {/* Multi-photo badge */}
+                  {item.photoPaths && item.photoPaths.length > 1 && (
+                    <div className="absolute bottom-1.5 left-1.5 bg-black/70 backdrop-blur-xs text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-sm">
+                      <Camera className="w-3 h-3 text-[#B8860B]" />
+                      <span>{item.photoPaths.length} Foto</span>
+                    </div>
+                  )}
+
                   {/* Condition Badge floating on top right */}
                   <div className="absolute top-1.5 right-1.5">
                     <ConditionBadge condition={item.condition} />
@@ -452,6 +463,11 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
                     />
                   ) : (
                     <ImageIcon className="w-6 h-6 text-[#C5A059]/60" />
+                  )}
+                  {item.photoPaths && item.photoPaths.length > 1 && (
+                    <span className="absolute bottom-1 right-1 bg-black/75 backdrop-blur-2xs text-white text-[9px] font-bold px-1 rounded shadow-xs">
+                      {item.photoPaths.length}
+                    </span>
                   )}
                 </div>
 
@@ -565,21 +581,17 @@ export function InventoryListPortal({ currentUser }: InventoryListPortalProps) {
               </button>
             </div>
 
-            {/* Photo */}
-            {detailItem.photoPath ? (
-              <div className="rounded-xl overflow-hidden bg-[#FAF9F5] border border-[#EAE4D9] max-h-64 flex items-center justify-center">
-                <img
-                  src={formatPhotoUrl(detailItem.photoPath)}
-                  alt={detailItem.name}
-                  className="w-full max-h-64 object-contain"
-                />
-              </div>
-            ) : (
-              <div className="py-8 bg-[#FAF9F5] rounded-xl border border-[#EAE4D9] flex flex-col items-center justify-center text-[#C5A059]">
-                <ImageIcon className="w-10 h-10 mb-1 opacity-70" />
-                <span className="text-xs text-[#70685C]">Tidak ada foto barang</span>
-              </div>
-            )}
+            {/* Photo Gallery with Multi-Photo Carousel & Lightbox */}
+            {(() => {
+              const photos = detailItem.photoPaths && detailItem.photoPaths.length > 0
+                ? detailItem.photoPaths
+                : (detailItem.photoPath ? [detailItem.photoPath] : []);
+              return (
+                <div className="rounded-xl overflow-hidden bg-[#FAF9F5] border border-[#EAE4D9]">
+                  <PhotoGalleryViewer photos={photos} itemName={detailItem.name} />
+                </div>
+              );
+            })()}
 
             {/* Badges */}
             <div className="flex items-center justify-between gap-2">

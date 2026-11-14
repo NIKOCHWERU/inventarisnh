@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
-import { saveUploadedFile } from '@/lib/upload';
+import { saveUploadedFile, saveMultipleUploadedFiles, parsePhotoPaths } from '@/lib/upload';
 import { logInventoryActivity } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
@@ -107,6 +107,7 @@ export async function GET(request: Request) {
       notes: (item as any).notes || null,
       price: (item as any).price ?? null,
       photoPath: item.photo_path,
+      photoPaths: parsePhotoPaths(item),
       createdById: item.created_by,
       creatorName: item.creator.name,
       createdAt: item.created_at,
@@ -149,7 +150,23 @@ export async function POST(request: Request) {
     const parsedPrice = priceRaw ? parseFloat(priceRaw.replace(/[^0-9.]/g, '')) : null;
     const price = parsedPrice !== null && !isNaN(parsedPrice) ? parsedPrice : null;
     const unit = formData.get('unit')?.toString().trim() || 'PCS';
-    const photoFile = formData.get('photo') as File | null;
+    
+    // Support multiple photos up to 100
+    const photoFiles = formData.getAll('photos') as File[];
+    const singlePhoto = formData.get('photo') as File | null;
+    const allPhotoFiles: File[] = [];
+    if (photoFiles.length > 0) {
+      allPhotoFiles.push(...photoFiles.filter((f) => f && f.size > 0));
+    } else if (singlePhoto && singlePhoto.size > 0) {
+      allPhotoFiles.push(singlePhoto);
+    }
+
+    if (allPhotoFiles.length > 100) {
+      return NextResponse.json(
+        { error: 'Maksimal 100 foto yang diperbolehkan per barang.' },
+        { status: 400 }
+      );
+    }
 
     if (!name) {
       return NextResponse.json({ error: 'Nama barang wajib diisi.' }, { status: 400 });
@@ -182,12 +199,13 @@ export async function POST(request: Request) {
     }
 
     let photo_path: string | null = null;
-    if (photoFile && photoFile.size > 0) {
-      const uploadResult = await saveUploadedFile(photoFile);
-      if (!uploadResult.success) {
-        return NextResponse.json({ error: uploadResult.error }, { status: 400 });
+    let photo_paths: string | null = null;
+    if (allPhotoFiles.length > 0) {
+      const uploadResult = await saveMultipleUploadedFiles(allPhotoFiles, '', 100);
+      if (uploadResult.filePaths.length > 0) {
+        photo_path = uploadResult.filePaths[0];
+        photo_paths = JSON.stringify(uploadResult.filePaths);
       }
-      photo_path = uploadResult.filePath || null;
     }
 
     // Always attribute created_by to current authenticated session user (prevents frontend spoofing)
@@ -202,6 +220,7 @@ export async function POST(request: Request) {
         notes,
         price,
         photo_path,
+        photo_paths,
         created_by: user.id,
       },
       include: {
@@ -224,6 +243,7 @@ export async function POST(request: Request) {
         notes: (inventory as any).notes || null,
         price: (inventory as any).price ?? null,
         photo_path: inventory.photo_path,
+        photo_paths: (inventory as any).photo_paths || null,
       },
     });
 
@@ -241,6 +261,7 @@ export async function POST(request: Request) {
         notes: (inventory as any).notes || null,
         price: (inventory as any).price ?? null,
         photoPath: inventory.photo_path,
+        photoPaths: parsePhotoPaths(inventory),
         creatorName: inventory.creator.name,
         createdAt: inventory.created_at,
       },

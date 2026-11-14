@@ -156,3 +156,56 @@ export async function testDirectoryWritable(targetPath: string): Promise<{ writa
     return { writable: false, message: `Folder tidak dapat diakses atau ditulis: ${err.message}` };
   }
 }
+
+/**
+ * Extracts list of photo paths from database record.
+ * Handles both new photo_paths JSON string array and legacy photo_path.
+ */
+export function parsePhotoPaths(item: { photo_path?: string | null; photo_paths?: string | null } | null | undefined): string[] {
+  if (!item) return [];
+  if (item.photo_paths) {
+    try {
+      const parsed = JSON.parse(item.photo_paths);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter((p) => typeof p === 'string' && p.trim().length > 0);
+      }
+    } catch {}
+  }
+  if (item.photo_path) {
+    if (item.photo_path.startsWith('[') && item.photo_path.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(item.photo_path);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter((p) => typeof p === 'string' && p.trim().length > 0);
+        }
+      } catch {}
+    }
+    return [item.photo_path];
+  }
+  return [];
+}
+
+/**
+ * Saves multiple uploaded files (up to maxCount, default 100).
+ */
+export async function saveMultipleUploadedFiles(
+  files: File[],
+  subFolder: string = '',
+  maxCount: number = 100
+): Promise<{ filePaths: string[]; errors: string[] }> {
+  const filePaths: string[] = [];
+  const errors: string[] = [];
+  const filesToProcess = files.slice(0, maxCount);
+
+  for (const file of filesToProcess) {
+    if (!file || file.size === 0) continue;
+    const res = await saveUploadedFile(file, subFolder);
+    if (res.success && res.filePath) {
+      filePaths.push(res.filePath);
+    } else if (res.error) {
+      errors.push(`${file.name}: ${res.error}`);
+    }
+  }
+
+  return { filePaths, errors };
+}

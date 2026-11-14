@@ -71,6 +71,7 @@ model Inventory {
   notes       String?
   price       Float?
   photo_path  String?
+  photo_paths String?
   created_by  String
   creator     User        @relation(fields: [created_by], references: [id])
   created_at  DateTime    @default(now())
@@ -124,6 +125,7 @@ model Logistic {
   notes       String?
   price       Float?
   photo_path  String?
+  photo_paths String?
   created_by  String
   creator     User     @relation(fields: [created_by], references: [id])
   created_at  DateTime @default(now())

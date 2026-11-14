@@ -18,6 +18,7 @@ export interface InventoryPreviewData {
   notes?: string;
   price?: number;
   photoPreviewUrl: string | null;
+  photoPreviewUrls?: string[];
   submitterName: string;
 }
 
@@ -36,6 +37,12 @@ export function InventoryConfirmModal({
   data,
   isSubmitting,
 }: InventoryConfirmModalProps) {
+  const allPhotos = data.photoPreviewUrls && data.photoPreviewUrls.length > 0
+    ? data.photoPreviewUrls
+    : data.photoPreviewUrl
+    ? [data.photoPreviewUrl]
+    : [];
+
   return (
     <Modal
       isOpen={isOpen}
@@ -46,16 +53,35 @@ export function InventoryConfirmModal({
     >
       <div className="space-y-4">
         {/* Photo Preview if available */}
-        {data.photoPreviewUrl ? (
-          <div className="w-full rounded-lg overflow-hidden border border-[#EAE4D9] bg-[#FAF9F5] flex flex-col items-center justify-center p-1">
+        {allPhotos.length > 0 ? (
+          <div className="w-full rounded-lg overflow-hidden border border-[#EAE4D9] bg-[#FAF9F5] flex flex-col items-center justify-center p-2 space-y-2">
             <img
-              src={data.photoPreviewUrl}
+              src={allPhotos[0]}
               alt="Preview Barang"
-              className="w-full max-h-56 object-contain rounded-md"
+              className="w-full max-h-52 object-contain rounded-md"
             />
-            <span className="text-[11px] text-[#70685C] mt-1 pb-1">
-              Foto Barang Inventaris
-            </span>
+            {allPhotos.length > 1 && (
+              <div className="w-full flex items-center justify-between text-[11px] text-[#70685C] px-1 border-t border-[#EAE4D9] pt-1.5">
+                <span className="font-bold text-[#7A5805]">
+                  📸 {allPhotos.length} Foto Siap Disimpan
+                </span>
+                <div className="flex gap-1 overflow-x-auto max-w-[200px]">
+                  {allPhotos.slice(0, 6).map((url, i) => (
+                    <img
+                      key={i}
+                      src={url}
+                      alt={`Thumb ${i + 1}`}
+                      className="w-7 h-7 rounded object-cover border border-[#EAE4D9]"
+                    />
+                  ))}
+                  {allPhotos.length > 6 && (
+                    <span className="text-[10px] self-center text-[#70685C] font-semibold">
+                      +{allPhotos.length - 6}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="w-full py-5 rounded-lg border border-dashed border-[#D6CCB8] bg-[#FAF9F5] flex flex-col items-center justify-center text-[#70685C]">

@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
-import { writeFile, mkdir, unlink } from 'fs/promises';
-import { existsSync } from 'fs';
-import path from 'path';
+import { deleteUploadedFile, saveMultipleUploadedFiles, parsePhotoPaths } from '@/lib/upload';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +33,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     return NextResponse.json({
       success: true,
-      item,
+      item: {
+        ...item,
+        photoPaths: parsePhotoPaths(item),
+      },
     });
   } catch (error: any) {
     console.error('Get logistic detail error:', error);
@@ -61,7 +62,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
 
     const contentType = request.headers.get('content-type') || '';
-    let photoPath: string | null | undefined = undefined; // undefined = no change
+    const existingPhotosInDb = parsePhotoPaths(existing as any);
+    let finalPhotoPaths: string[] | undefined = undefined;
+    let finalPhotoPath: string | null | undefined = undefined;
 
     let name: string | undefined;
     let category: string | undefined;
@@ -101,32 +104,54 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         }
       }
 
+      const existingPhotosRaw = formData.get('existing_photos')?.toString();
       const removePhoto = formData.get('remove_photo') === 'true';
-      const photoFile = formData.get('photo') as File | null;
+      const removeAllPhotos = formData.get('remove_all_photos') === 'true';
 
-      if (removePhoto) {
-        // Delete existing photo
-        if (existing.photo_path) {
-          const absPath = path.join(process.cwd(), 'public', existing.photo_path);
-          if (existsSync(absPath)) await unlink(absPath).catch(() => {});
-        }
-        photoPath = null;
-      } else if (photoFile && photoFile.size > 0) {
-        // Upload new photo
-        const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'logistics');
-        if (!existsSync(uploadsDir)) await mkdir(uploadsDir, { recursive: true });
+      const photoFiles = formData.getAll('photos') as File[];
+      const singleFile = formData.get('photo') as File | null;
+      const filesToSave: File[] = [];
+      if (photoFiles.length > 0) {
+        filesToSave.push(...photoFiles.filter((f) => f && f.size > 0));
+      } else if (singleFile && singleFile.size > 0) {
+        filesToSave.push(singleFile);
+      }
 
-        const ext = photoFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-        const filename = `logistic-${id}-${Date.now()}.${ext}`;
-        const buffer = Buffer.from(await photoFile.arrayBuffer());
-        await writeFile(path.join(uploadsDir, filename), buffer);
+      let keptPhotos: string[] = [];
+      if (existingPhotosRaw !== undefined && existingPhotosRaw !== null) {
+        try {
+          const parsed = JSON.parse(existingPhotosRaw);
+          if (Array.isArray(parsed)) {
+            keptPhotos = parsed.filter((p: any) => typeof p === 'string' && existingPhotosInDb.includes(p));
+          }
+        } catch {}
+      } else if (!removePhoto && !removeAllPhotos) {
+        keptPhotos = [...existingPhotosInDb];
+      }
 
-        // Delete old photo if exists
-        if (existing.photo_path) {
-          const oldAbs = path.join(process.cwd(), 'public', existing.photo_path);
-          if (existsSync(oldAbs)) await unlink(oldAbs).catch(() => {});
-        }
-        photoPath = `/uploads/logistics/${filename}`;
+      if (removeAllPhotos || (removePhoto && filesToSave.length === 0 && !existingPhotosRaw)) {
+        keptPhotos = [];
+      }
+
+      // Delete removed photos
+      const toDelete = existingPhotosInDb.filter((p) => !keptPhotos.includes(p));
+      for (const p of toDelete) {
+        await deleteUploadedFile(p);
+      }
+
+      if (keptPhotos.length + filesToSave.length > 100) {
+        return NextResponse.json({ error: 'Maksimal 100 foto yang diperbolehkan.' }, { status: 400 });
+      }
+
+      let newlySaved: string[] = [];
+      if (filesToSave.length > 0) {
+        const uploadResult = await saveMultipleUploadedFiles(filesToSave, 'logistics', 100 - keptPhotos.length);
+        newlySaved = uploadResult.filePaths;
+      }
+
+      if (existingPhotosRaw !== undefined || removePhoto || removeAllPhotos || filesToSave.length > 0) {
+        finalPhotoPaths = [...keptPhotos, ...newlySaved];
+        finalPhotoPath = finalPhotoPaths[0] || null;
       }
     } else {
       // JSON body (stock-only update)
@@ -171,7 +196,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         ...(location !== undefined && { location: location.trim() }),
         ...(notes !== undefined && { notes }),
         ...(price !== undefined && { price }),
-        ...(photoPath !== undefined && { photo_path: photoPath }),
+        ...(finalPhotoPath !== undefined && { photo_path: finalPhotoPath }),
+        ...(finalPhotoPaths !== undefined && {
+          photo_paths: finalPhotoPaths.length > 0 ? JSON.stringify(finalPhotoPaths) : null,
+        }),
       },
       include: { creator: { select: { id: true, name: true } } },
     });
@@ -191,7 +219,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       },
     });
 
-    return NextResponse.json({ success: true, item: updated });
+    return NextResponse.json({
+      success: true,
+      item: {
+        ...updated,
+        photoPaths: parsePhotoPaths(updated),
+      },
+    });
   } catch (error: any) {
     console.error('Update logistic error:', error);
     return NextResponse.json({ error: 'Gagal memperbarui data logistik.' }, { status: 500 });
@@ -230,10 +264,10 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
       },
     }).catch(() => {});
 
-    // Delete photo file if exists
-    if (existing.photo_path) {
-      const absPath = path.join(process.cwd(), 'public', existing.photo_path);
-      if (existsSync(absPath)) await unlink(absPath).catch(() => {});
+    // Delete all photo files if exist
+    const allPhotos = parsePhotoPaths(existing as any);
+    for (const p of allPhotos) {
+      await deleteUploadedFile(p);
     }
 
     await prisma.logistic.delete({ where: { id } });
